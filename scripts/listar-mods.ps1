@@ -1,5 +1,5 @@
 param(
-    [string]$Instancia = "$env:USERPROFILE\curseforge\minecraft\Instances\HL 1.20.1"
+    [string]$Instancia = "$env:USERPROFILE\curseforge\minecraft\Instances\HL 1.18 (1)"
 )
 
 $pastaMods = Join-Path $Instancia "mods"
