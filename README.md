@@ -63,7 +63,7 @@ Mods de otimização encontrados na pasta `mods`, separados por área.
 | Icterine | `Icterine-forge-1.20.0-1-1.3.0.jar` | Reduz o custo das checagens de conquistas ao mudar o inventário |
 | Create: Threaded Trains | `createthreadedtrains-forge-1.20.1-1.0.0.jar` | Processa os trens do Create em uma thread separada |
 
-### Chunks, salvamento e rede
+### Chunks e salvamento
 
 | Mod | Arquivo | Função |
 |---|---|---|
@@ -72,6 +72,12 @@ Mods de otimização encontrados na pasta `mods`, separados por área.
 | Smooth Chunk | `smoothchunk-1.20.1-4.4.jar` | Espalha o salvamento de chunks para evitar picos de lag |
 | Fast Async World Save | `fastasyncworldsave-1.20.1-2.6.jar` | Salva o mundo de forma assíncrona |
 | Chunky | `Chunky-1.3.146.jar` | Pré-gera o mundo para evitar lag ao explorar |
+
+### Rede
+
+| Mod | Arquivo | Função |
+|---|---|---|
+| Connectivity | `connectivity-1.20.1-7.7.jar` | Corrige timeouts e limites de pacotes que derrubam a conexão em modpacks grandes |
 
 ### Bibliotecas de suporte (não otimizam sozinhas)
 
