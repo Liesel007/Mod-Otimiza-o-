@@ -83,3 +83,11 @@ Mods de otimização encontrados na pasta `mods`, separados por área.
 
 - `sodiumoptionsapi-forge-1.0.10-1.20.1.jar`: API de menus de opções usada pelos addons do Embeddium
 - `cupboard-1.20.1-4.2.jar`: biblioteca usada por Better Chunk Loading, Chunk Sending, Smooth Chunk e outros mods do mesmo autor
+
+## Estudo do código-fonte
+
+O código de cada mod de otimização foi lido e analisado:
+
+- [`docs/aprendizados.md`](docs/aprendizados.md): técnicas de otimização encontradas, como os mods
+  alteram o Minecraft (Mixin), riscos e interações entre os mods deste pack.
+- [`docs/mods/`](docs/mods/): uma anotação por mod (problema, como resolve, o que aprender).
