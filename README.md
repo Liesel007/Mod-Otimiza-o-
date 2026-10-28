@@ -21,7 +21,7 @@ O resultado é salvo em `mods-instalados.txt`.
 
 ## Mods de otimização instalados
 
-A instância tem 324 mods. Os de otimização estão abaixo, separados por área.
+Mods de otimização encontrados na pasta `mods`, separados por área.
 
 ### Renderização e FPS (cliente)
 
