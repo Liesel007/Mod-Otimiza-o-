@@ -91,3 +91,10 @@ O código de cada mod de otimização foi lido e analisado:
 - [`docs/aprendizados.md`](docs/aprendizados.md): técnicas de otimização encontradas, como os mods
   alteram o Minecraft (Mixin), riscos e interações entre os mods deste pack.
 - [`docs/mods/`](docs/mods/): uma anotação por mod (problema, como resolve, o que aprender).
+
+## Mod próprio: HL Otimização
+
+A pasta [`mod/`](mod/) contém um mod Forge 1.20.1 que reúne técnicas dos mods estudados e corrige erros
+encontrados neles. Cada módulo desliga sozinho se o mod original já estiver no pack. Detalhes, lista de
+correções e como foi testado em [`mod/README.md`](mod/README.md). Jar pronto em
+[`releases/`](releases/).

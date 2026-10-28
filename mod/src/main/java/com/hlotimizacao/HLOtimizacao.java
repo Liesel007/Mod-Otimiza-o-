@@ -1,0 +1,67 @@
+package com.hlotimizacao;
+
+import com.hlotimizacao.config.Config;
+import com.hlotimizacao.config.Modulo;
+import com.hlotimizacao.recursos.GravadorAssincrono;
+import com.hlotimizacao.recursos.RelatorioConflitos;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.event.server.ServerStartedEvent;
+import net.minecraftforge.event.server.ServerStoppedEvent;
+import net.minecraftforge.fml.IExtensionPoint;
+import net.minecraftforge.fml.ModLoadingContext;
+import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.fml.loading.FMLEnvironment;
+
+import java.lang.reflect.Field;
+import java.util.concurrent.ExecutorService;
+
+@Mod(HLOtimizacao.MOD_ID)
+public class HLOtimizacao {
+    public static final String MOD_ID = "hlotimizacao";
+
+    public HLOtimizacao() {
+        Config.carregar();
+        // So o cliente ou so o servidor podem ter o mod: nao exige o mesmo mod dos dois lados.
+        ModLoadingContext.get().registerExtensionPoint(IExtensionPoint.DisplayTest.class,
+                () -> new IExtensionPoint.DisplayTest(() -> IExtensionPoint.DisplayTest.IGNORESERVERONLY, (remote, isServer) -> true));
+
+        MinecraftForge.EVENT_BUS.addListener(this::aoIniciarServidor);
+        MinecraftForge.EVENT_BUS.addListener(this::aoPararServidor);
+        if (FMLEnvironment.dist == Dist.CLIENT) {
+            com.hlotimizacao.cliente.EventosCliente.registrar();
+        }
+    }
+
+    private void aoIniciarServidor(ServerStartedEvent event) {
+        if (Config.ativo(Modulo.RELATORIO_CONFLITOS)) {
+            RelatorioConflitos.registrar(event.getServer());
+        }
+    }
+
+    private void aoPararServidor(ServerStoppedEvent event) {
+        if (Config.ativo(Modulo.SALVAMENTO_ASSINCRONO)) {
+            GravadorAssincrono.esperarPendentes();
+        }
+        if (Config.ativo(Modulo.CORRECAO_FASTASYNCWORLDSAVE)) {
+            esperarFastAsyncWorldSave();
+        }
+    }
+
+    /**
+     * O Fast Async World Save grava numa thread daemon e nunca espera ela terminar: se o jogo fecha
+     * logo depois de salvar, a ultima gravacao pode se perder. Aqui esperamos a fila dele esvaziar.
+     */
+    private static void esperarFastAsyncWorldSave() {
+        try {
+            Class<?> classe = Class.forName("com.fastasyncworldsave.FastAsyncWorldSave");
+            Field campo = classe.getField("threadPool");
+            if (campo.get(null) instanceof ExecutorService executor) {
+                GravadorAssincrono.esperar(executor, "Fast Async World Save");
+                Config.LOGGER.info("Gravacoes pendentes do Fast Async World Save concluidas");
+            }
+        } catch (ReflectiveOperationException | LinkageError e) {
+            Config.LOGGER.warn("Nao foi possivel acessar a fila do Fast Async World Save", e);
+        }
+    }
+}

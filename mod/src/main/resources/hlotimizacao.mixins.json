@@ -1,0 +1,23 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.hlotimizacao.mixin",
+  "compatibilityLevel": "JAVA_17",
+  "refmap": "hlotimizacao.refmap.json",
+  "mixins": [
+    "despawn.MobDespawnMixin",
+    "trigger.InventoryChangeTriggerMixin",
+    "trigger.SimpleCriterionTriggerAccessor",
+    "trigger.TriggerInstanceAccessor",
+    "save.DimensionDataStorageMixin"
+  ],
+  "client": [
+    "client.gpuleak.RenderTargetMixin",
+    "client.fps.MinecraftFpsMixin",
+    "client.toast.ToastComponentMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  },
+  "plugin": "com.hlotimizacao.mixin.HLMixinPlugin"
+}
