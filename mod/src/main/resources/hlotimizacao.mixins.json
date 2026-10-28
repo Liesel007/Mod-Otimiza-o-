@@ -7,8 +7,8 @@
   "mixins": [
     "despawn.MobDespawnMixin",
     "trigger.InventoryChangeTriggerMixin",
-    "trigger.SimpleCriterionTriggerAccessor",
-    "trigger.TriggerInstanceAccessor",
+    "trigger.SimpleCriterionTriggerMixin",
+    "trigger.TriggerInstanceMixin",
     "save.DimensionDataStorageMixin"
   ],
   "client": [

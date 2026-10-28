@@ -40,7 +40,7 @@ O log mostra, na inicialização, o estado de cada módulo e o motivo
 | Let Me Despawn | Tira a persistência de **qualquer** mob que pega um item, inclusive mobs que já eram persistentes por outro motivo (spawners de estruturas, outros mods). | Lembra se o mob já era persistente antes de pegar o item e só desfaz a persistência causada pelo item. |
 | Let Me Despawn | Ao desaparecer, solta **todo** o equipamento, inclusive o que o mob já tinha ao nascer (gera lixo de itens). | Solta só o que o mob pegou (chance de drop > 1, marcada pelo próprio Minecraft). |
 | Let Me Despawn | Guarda "pegou itens" num campo que **não é salvo**: depois de recarregar o mundo, o mob some levando os itens. | Usa a chance de drop, que o Minecraft já salva no NBT do mob. |
-| Icterine | Ignora o gatilho quando a pilha esvazia, mas conquistas do tipo "ter N slots vazios" podem ser obtidas **justamente** ao esvaziar. | Só ignora quando o jogador não tem nenhuma conquista pendente que conte slots. |
+| Icterine | Ignora o gatilho quando a pilha esvazia, mas conquistas do tipo "ter N slots vazios" podem ser obtidas **justamente** ao esvaziar. | Só ignora quando o jogador não tem nenhuma conquista pendente que possa ser satisfeita esvaziando uma pilha (vazios com mínimo, ocupados/cheios com máximo). A resposta fica em cache por jogador. |
 | Fast Async World Save | Grava numa thread daemon e **nunca espera** ela terminar: fechar o jogo logo depois de salvar pode perder o último save. | Espera as gravações pendentes quando o servidor para. Com o FAWS instalado, o módulo `correcao_fastasyncworldsave` faz isso **para a fila dele**. |
 | Fast Async World Save | Chama `save(CompoundTag)` direto e **ignora** mods cujo `SavedData` sobrescreve `save(File)` (formato próprio). | Detecta essas classes e as salva do jeito delas. |
 | Fast Async World Save | Entrega para a outra thread o mesmo `CompoundTag` que o mod devolveu; se o mod continua alterando esse tag, a gravação pode sair corrompida. | Copia o tag na thread principal antes de gravar. |
@@ -50,6 +50,9 @@ O log mostra, na inicialização, o estado de cada módulo e o motivo
 O `relatorio_conflitos` também avisa sobre Starlight, Ksyxis e Connectivity (ver `docs/aprendizados.md`).
 
 ## Como foi testado
+
+Teste de antes e depois com números: [`docs/benchmark.md`](../docs/benchmark.md).
+
 
 - Compilado com ForgeGradle 6 contra Forge 1.20.1-47.3.0; o jar final foi reobfuscado para nomes SRG.
 - **Servidor dedicado** de teste: todos os mixins de servidor aplicados sem erro. Testes com comandos:

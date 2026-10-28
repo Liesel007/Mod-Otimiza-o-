@@ -1,0 +1,9 @@
+modLoader="javafml"
+loaderVersion="[47,)"
+license="MIT"
+
+[[mods]]
+modId="hlbench"
+version="0.1.0"
+displayName="HL Otimizacao - Benchmark"
+description='''Comandos de medicao usados so no ambiente de teste. Nao vai no jar do mod.'''

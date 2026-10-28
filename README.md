@@ -97,4 +97,4 @@ O código de cada mod de otimização foi lido e analisado:
 A pasta [`mod/`](mod/) contém um mod Forge 1.20.1 que reúne técnicas dos mods estudados e corrige erros
 encontrados neles. Cada módulo desliga sozinho se o mod original já estiver no pack. Detalhes, lista de
 correções e como foi testado em [`mod/README.md`](mod/README.md). Jar pronto em
-[`releases/`](releases/).
+[`releases/`](releases/). Teste de antes e depois em [`docs/benchmark.md`](docs/benchmark.md).

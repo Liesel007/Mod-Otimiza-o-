@@ -1,0 +1,14 @@
+{
+  "criteria": {
+    "vazios": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "slots": {
+          "empty": {
+            "min": 30
+          }
+        }
+      }
+    }
+  }
+}
