@@ -1,6 +1,6 @@
 # Mod Otimização — HL 1.20.1
 
-Levantamento dos mods de otimização instalados no modpack **HL** (CurseForge). A instância fica na pasta `HL 1.18 (1)`.
+Levantamento dos mods de otimização instalados no modpack **HL** para **Minecraft 1.20.1** (CurseForge). A instância fica na pasta `HL 1.18 (1)`; o nome da pasta não corresponde à versão do jogo.
 
 ## Como gerar a lista de mods
 
