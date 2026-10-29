@@ -5,7 +5,7 @@ Mod de otimização feito a partir do estudo do código dos mods do modpack HL
 **código próprio** (sem copiar código dos outros mods, que têm licenças diferentes) e **corrige erros**
 encontrados neles.
 
-**Jar pronto:** [`releases/hlotimizacao-0.1.0.jar`](../releases/hlotimizacao-0.1.0.jar). Basta colocá-lo
+**Jar pronto:** [`releases/hlotimizacao-0.1.1.jar`](../releases/hlotimizacao-0.1.1.jar). Basta colocá-lo
 na pasta `mods` da instância.
 
 ## Como ele convive com os mods do pack
@@ -66,6 +66,28 @@ Teste de antes e depois com números: [`docs/benchmark.md`](../docs/benchmark.md
   carregamento de recursos e rodou ~10 minutos sem nenhum erro vindo do mod.
 - **Não testado**: o drop dos itens ao desaparecer (exige um jogador conectado), o limite de FPS na prática
   e o funcionamento junto com o pack HL completo. Teste num mundo de cópia antes de usar no mundo principal.
+
+## Histórico de versões
+
+### 0.1.1
+Correção no módulo `salvamento_assincrono` (relatado no Windows com o Goblin Traders):
+- SavedData com nome que o `java.nio` não aceita (ex.: `goblintraders:goblin_trader_spawner`, com `:`, no
+  Windows) gerava `InvalidPathException` na thread de gravação a cada save. Agora o caminho é validado
+  ainda na thread do servidor e esses dados são salvos do jeito vanilla (síncrono), como o vanilla e o
+  Fast Async World Save faziam.
+- Toda a gravação assíncrona fica dentro do `try`; qualquer erro é registrado com o nome do dado.
+- Antes, um dado cuja gravação falhava ficava marcado como "limpo" e não era regravado (perda silenciosa).
+  Agora, se a gravação falhar, o dado volta a ser marcado como sujo na thread do servidor e é regravado no
+  próximo save.
+- O arquivo temporário recebe `fsync` antes de substituir o arquivo antigo.
+
+Testado num servidor dedicado (Linux, usando um nome com caractere NUL, que o `java.nio` rejeita no Linux
+como rejeita `:` no Windows): nenhuma exceção não tratada; o dado com falha de gravação foi remarcado e
+gravado no save seguinte; dados normais continuam assíncronos (mediana de ~2 ms na thread principal para
+4 MB). O caso exato do Windows com `:` não pôde ser executado aqui (o ambiente de teste é Linux).
+
+### 0.1.0
+Primeira versão.
 
 ## Compilar
 

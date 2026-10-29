@@ -58,7 +58,10 @@ public class HLBench {
                         .then(Commands.argument("quantidade", IntegerArgumentType.integer(1))
                                 .executes(c -> seguro(c, HLBench::criarMobs))))
                 .then(Commands.literal("contar").executes(c -> seguro(c, HLBench::contarMobs)))
-                .then(Commands.literal("esvaziar").executes(c -> seguro(c, HLBench::esvaziar))));
+                .then(Commands.literal("esvaziar").executes(c -> seguro(c, HLBench::esvaziar)))
+                .then(Commands.literal("salvamento")
+                        .then(Commands.literal("preparar").executes(c -> seguro(c, TesteSalvamento::preparar)))
+                        .then(Commands.literal("verificar").executes(c -> seguro(c, TesteSalvamento::verificar)))));
     }
 
     /** Tempo que a thread principal fica parada salvando N KB de dados (SavedData), como no autosave. */

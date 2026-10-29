@@ -4,7 +4,10 @@ import com.hlotimizacao.config.Config;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtIo;
 
-import java.io.File;
+import java.io.FileOutputStream;
+import java.io.FilterOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -28,20 +31,34 @@ public final class GravadorAssincrono {
     private GravadorAssincrono() {
     }
 
-    public static void gravar(CompoundTag tag, File destino) {
+    /**
+     * @param destino caminho ja validado na thread do servidor
+     * @param nome    nome do SavedData, para o log
+     * @param aoFalhar chamado (na thread de gravacao) se a gravacao falhar, para o dado voltar a ser
+     *                 marcado como sujo e ser regravado no proximo save
+     */
+    public static void gravar(CompoundTag tag, Path destino, String nome, Runnable aoFalhar) {
         EXECUTOR.execute(() -> {
-            Path alvo = destino.toPath();
-            Path temporario = alvo.resolveSibling(alvo.getFileName() + ".hltmp");
             try {
-                Files.createDirectories(alvo.getParent());
-                NbtIo.writeCompressed(tag, temporario.toFile());
-                try {
-                    Files.move(temporario, alvo, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-                } catch (AtomicMoveNotSupportedException e) {
-                    Files.move(temporario, alvo, StandardCopyOption.REPLACE_EXISTING);
+                Path temporario = destino.resolveSibling(destino.getFileName() + ".hltmp");
+                Files.createDirectories(destino.getParent());
+                try (FileOutputStream arquivo = new FileOutputStream(temporario.toFile())) {
+                    NbtIo.writeCompressed(tag, new NaoFecha(arquivo));
+                    // Garante que os bytes estao no disco antes de substituir o arquivo antigo.
+                    arquivo.getFD().sync();
                 }
-            } catch (Exception e) {
-                Config.LOGGER.error("Nao foi possivel salvar {}", destino, e);
+                try {
+                    Files.move(temporario, destino, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+                } catch (AtomicMoveNotSupportedException e) {
+                    Files.move(temporario, destino, StandardCopyOption.REPLACE_EXISTING);
+                }
+            } catch (Throwable t) {
+                Config.LOGGER.error("Nao foi possivel salvar os dados '{}' em {}; serao regravados no proximo save", nome, destino, t);
+                try {
+                    aoFalhar.run();
+                } catch (Throwable t2) {
+                    Config.LOGGER.error("Nao foi possivel remarcar '{}' para regravar", nome, t2);
+                }
             }
         });
     }
@@ -61,6 +78,23 @@ public final class GravadorAssincrono {
             marcador.get(60, TimeUnit.SECONDS);
         } catch (Exception e) {
             Config.LOGGER.warn("Gravacoes pendentes de {} nao terminaram a tempo", nome, e);
+        }
+    }
+
+    /** NbtIo.writeCompressed fecha o stream; este invólucro so faz flush, para dar tempo do fsync. */
+    private static final class NaoFecha extends FilterOutputStream {
+        NaoFecha(OutputStream out) {
+            super(out);
+        }
+
+        @Override
+        public void write(byte[] b, int off, int len) throws IOException {
+            out.write(b, off, len);
+        }
+
+        @Override
+        public void close() throws IOException {
+            flush();
         }
     }
 }

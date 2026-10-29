@@ -3,10 +3,12 @@ package com.hlotimizacao.mixin.save;
 import com.hlotimizacao.config.Config;
 import com.hlotimizacao.recursos.GravadorAssincrono;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.nbt.NbtUtils;
 import net.minecraft.world.level.saveddata.SavedData;
 import net.minecraft.world.level.storage.DimensionDataStorage;
 import net.minecraftforge.fml.util.ObfuscationReflectionHelper;
+import net.minecraftforge.server.ServerLifecycleHooks;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -17,7 +19,10 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import java.io.File;
 import java.lang.reflect.Method;
+import java.nio.file.InvalidPathException;
+import java.nio.file.Path;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -28,7 +33,9 @@ import java.util.concurrent.ConcurrentHashMap;
  * Correcoes em relacao ao Fast Async World Save:
  * - SavedData que sobrescrevem save(File) (mods com formato proprio) sao salvos do jeito deles,
  *   na thread principal, em vez de terem essa logica ignorada;
- * - ao parar o servidor, as gravacoes pendentes sao esperadas (ver HLOtimizacao).
+ * - ao parar o servidor, as gravacoes pendentes sao esperadas (ver HLOtimizacao);
+ * - se uma gravacao falhar, o dado volta a ser marcado como sujo e e regravado no proximo save;
+ * - nomes que o java.nio nao aceita (":" no Windows) sao salvos do jeito vanilla.
  */
 @Mixin(DimensionDataStorage.class)
 public abstract class DimensionDataStorageMixin {
@@ -36,6 +43,8 @@ public abstract class DimensionDataStorageMixin {
     private static final Map<Class<?>, Boolean> hlotimizacao$sobrescreveSave = new ConcurrentHashMap<>();
     @Unique
     private static Method hlotimizacao$saveArquivo;
+    @Unique
+    private static final Set<String> hlotimizacao$avisados = ConcurrentHashMap.newKeySet();
 
     @Shadow
     @Final
@@ -51,12 +60,20 @@ public abstract class DimensionDataStorageMixin {
             if (dados == null) {
                 continue;
             }
-            File arquivo = this.getDataFile(entrada.getKey());
+            String nome = entrada.getKey();
+            File arquivo = this.getDataFile(nome);
             if (hlotimizacao$temSaveProprio(dados.getClass())) {
                 dados.save(arquivo);
                 continue;
             }
             if (!dados.isDirty()) {
+                continue;
+            }
+            Path caminho = hlotimizacao$caminhoValido(arquivo, nome);
+            if (caminho == null) {
+                // Nome que o java.nio nao aceita neste sistema (ex.: ":" no Windows, como no Goblin
+                // Traders). O vanilla grava com java.io.File, que aceita; entao salva do jeito vanilla.
+                dados.save(arquivo);
                 continue;
             }
             CompoundTag tag = new CompoundTag();
@@ -70,9 +87,36 @@ public abstract class DimensionDataStorageMixin {
             }
             NbtUtils.addCurrentDataVersion(tag);
             dados.setDirty(false);
-            GravadorAssincrono.gravar(tag, arquivo);
+            GravadorAssincrono.gravar(tag, caminho, nome, hlotimizacao$remarcarSujo(dados));
         }
         ci.cancel();
+    }
+
+    /** Converte para Path aqui na thread do servidor; null se o nome nao for valido para o java.nio. */
+    @Unique
+    private static Path hlotimizacao$caminhoValido(File arquivo, String nome) {
+        try {
+            return arquivo.toPath();
+        } catch (InvalidPathException e) {
+            if (hlotimizacao$avisados.add(nome)) {
+                Config.LOGGER.info("SavedData '{}' tem um nome invalido para gravacao assincrona neste sistema; "
+                        + "sera salvo do jeito vanilla (sincrono)", nome);
+            }
+            return null;
+        }
+    }
+
+    /** Se a gravacao assincrona falhar, o dado volta a ser marcado como sujo na thread do servidor. */
+    @Unique
+    private static Runnable hlotimizacao$remarcarSujo(SavedData dados) {
+        MinecraftServer servidor = ServerLifecycleHooks.getCurrentServer();
+        return () -> {
+            if (servidor != null && servidor.isRunning()) {
+                servidor.execute(() -> dados.setDirty(true));
+            } else {
+                Config.LOGGER.error("O servidor ja parou: os dados que falharam nao puderam ser remarcados para regravar");
+            }
+        };
     }
 
     @Unique
