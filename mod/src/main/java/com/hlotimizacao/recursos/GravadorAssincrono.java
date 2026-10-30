@@ -16,6 +16,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Grava arquivos NBT comprimidos numa thread separada. Uma unica thread garante que gravacoes do
@@ -28,7 +29,56 @@ public final class GravadorAssincrono {
         return thread;
     });
 
+    /** Gravacoes pedidas que ainda nao terminaram. */
+    private static final AtomicInteger PENDENTES = new AtomicInteger();
+    private static final int ESPERA_AO_DESLIGAR_S = 10;
+
+    static {
+        // Se o processo fechar sem ServerStoppedEvent (crash, System.exit), a thread daemon morreria
+        // com gravacoes na fila. O shutdown hook espera um pouco por elas.
+        // (Um "matar processo" forcado pelo sistema nao roda shutdown hooks; nada a fazer nesse caso.)
+        Runtime.getRuntime().addShutdownHook(new Thread(GravadorAssincrono::aoDesligar, "HL Otimizacao - gravacoes ao desligar"));
+    }
+
     private GravadorAssincrono() {
+    }
+
+    /**
+     * Espera ate {@value #ESPERA_AO_DESLIGAR_S} s pelas gravacoes pendentes. Retorna quantas ainda
+     * ficaram pendentes (0 = tudo gravado).
+     */
+    public static int aoDesligar() {
+        int antes = PENDENTES.get();
+        if (antes == 0) {
+            return 0;
+        }
+        avisarDesligando("[salvamento_assincrono] Desligando com " + antes + " gravacao(oes) pendente(s); esperando ate "
+                + ESPERA_AO_DESLIGAR_S + " s");
+        try {
+            EXECUTOR.submit(() -> {
+            }).get(ESPERA_AO_DESLIGAR_S, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            // segue para informar quantas ficaram
+        }
+        int depois = PENDENTES.get();
+        avisarDesligando(depois == 0
+                ? "[salvamento_assincrono] Todas as gravacoes pendentes foram concluidas"
+                : "[salvamento_assincrono] " + depois + " gravacao(oes) NAO terminaram antes de o processo fechar");
+        return depois;
+    }
+
+    /** Durante o desligamento o sistema de log pode ja ter parado; escreve tambem no stderr. */
+    private static void avisarDesligando(String mensagem) {
+        try {
+            Config.LOGGER.warn(mensagem);
+        } catch (Throwable ignorado) {
+            // log indisponivel
+        }
+        System.err.println(mensagem);
+    }
+
+    public static int pendentes() {
+        return PENDENTES.get();
     }
 
     /**
@@ -38,6 +88,7 @@ public final class GravadorAssincrono {
      *                 marcado como sujo e ser regravado no proximo save
      */
     public static void gravar(CompoundTag tag, Path destino, String nome, Runnable aoFalhar) {
+        PENDENTES.incrementAndGet();
         EXECUTOR.execute(() -> {
             try {
                 Path temporario = destino.resolveSibling(destino.getFileName() + ".hltmp");
@@ -59,6 +110,8 @@ public final class GravadorAssincrono {
                 } catch (Throwable t2) {
                     Config.LOGGER.error("Nao foi possivel remarcar '{}' para regravar", nome, t2);
                 }
+            } finally {
+                PENDENTES.decrementAndGet();
             }
         });
     }
@@ -72,10 +125,14 @@ public final class GravadorAssincrono {
     }
 
     public static void esperar(ExecutorService executor, String nome) {
+        esperar(executor, nome, 60);
+    }
+
+    public static void esperar(ExecutorService executor, String nome, int segundos) {
         try {
             Future<?> marcador = executor.submit(() -> {
             });
-            marcador.get(60, TimeUnit.SECONDS);
+            marcador.get(segundos, TimeUnit.SECONDS);
         } catch (Exception e) {
             Config.LOGGER.warn("Gravacoes pendentes de {} nao terminaram a tempo", nome, e);
         }

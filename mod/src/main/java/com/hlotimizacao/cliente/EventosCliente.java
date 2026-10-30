@@ -11,6 +11,9 @@ public final class EventosCliente {
     }
 
     public static void registrar() {
+        if (Config.ativo(Modulo.TOOLTIP_SEGURO)) {
+            TooltipSeguro.registrar();
+        }
         if (Config.ativo(Modulo.VAZAMENTO_GPU)) {
             MinecraftForge.EVENT_BUS.addListener((TickEvent.ClientTickEvent event) -> {
                 if (event.phase == TickEvent.Phase.END) {

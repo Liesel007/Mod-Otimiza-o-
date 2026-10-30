@@ -128,6 +128,7 @@ public abstract class DimensionDataStorageMixin {
                 }
                 return c.getMethod(hlotimizacao$saveArquivo.getName(), File.class).getDeclaringClass() != SavedData.class;
             } catch (Throwable t) {
+                Config.LOGGER.debug("Nao foi possivel verificar se {} sobrescreve save(File); salvando do jeito original", c.getName(), t);
                 return true; // na duvida, usa o caminho original
             }
         });

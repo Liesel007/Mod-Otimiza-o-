@@ -9,7 +9,9 @@
     "trigger.InventoryChangeTriggerMixin",
     "trigger.SimpleCriterionTriggerMixin",
     "trigger.TriggerInstanceMixin",
-    "save.DimensionDataStorageMixin"
+    "save.DimensionDataStorageMixin",
+    "lag.LevelAccessor",
+    "lag.ChunkMapAccessor"
   ],
   "client": [
     "client.gpuleak.RenderTargetMixin",

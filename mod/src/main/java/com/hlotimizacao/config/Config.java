@@ -28,6 +28,8 @@ public final class Config {
     private static final Map<Modulo, String> MOTIVOS = new EnumMap<>(Modulo.class);
     private static int fpsSemFoco = 15;
     private static int fpsMinimizado = 1;
+    private static int lagLimiteMs = 2000;
+    private static int lagIntervaloS = 30;
     private static boolean carregado = false;
 
     private Config() {
@@ -61,10 +63,17 @@ public final class Config {
         }
         fpsSemFoco = lerInt(props, "fps_sem_foco.limite", 15, 1, 260);
         fpsMinimizado = lerInt(props, "fps_sem_foco.limite_minimizado", 1, 1, 260);
-        if (!props.containsKey("fps_sem_foco.limite") || !props.containsKey("fps_sem_foco.limite_minimizado")) {
-            faltando = true;
-            props.setProperty("fps_sem_foco.limite", Integer.toString(fpsSemFoco));
-            props.setProperty("fps_sem_foco.limite_minimizado", Integer.toString(fpsMinimizado));
+        lagLimiteMs = lerInt(props, "diagnostico_lag.limite_ms", 2000, 100, 600000);
+        lagIntervaloS = lerInt(props, "diagnostico_lag.intervalo_s", 30, 1, 3600);
+        for (String[] chave : new String[][]{
+                {"fps_sem_foco.limite", Integer.toString(fpsSemFoco)},
+                {"fps_sem_foco.limite_minimizado", Integer.toString(fpsMinimizado)},
+                {"diagnostico_lag.limite_ms", Integer.toString(lagLimiteMs)},
+                {"diagnostico_lag.intervalo_s", Integer.toString(lagIntervaloS)}}) {
+            if (!props.containsKey(chave[0])) {
+                faltando = true;
+                props.setProperty(chave[0], chave[1]);
+            }
         }
         if (faltando) {
             salvar(caminho, props);
@@ -117,6 +126,16 @@ public final class Config {
         return fpsMinimizado;
     }
 
+    public static int lagLimiteMs() {
+        carregar();
+        return lagLimiteMs;
+    }
+
+    public static int lagIntervaloS() {
+        carregar();
+        return lagIntervaloS;
+    }
+
     public static boolean modInstalado(String modId) {
         LoadingModList lista = LoadingModList.get();
         return lista != null && lista.getModFileById(modId) != null;
@@ -153,7 +172,11 @@ public final class Config {
         }
         sb.append("# FPS maximo com a janela sem foco e minimizada (modulo fps_sem_foco).\n");
         sb.append("fps_sem_foco.limite=").append(props.getProperty("fps_sem_foco.limite")).append('\n');
-        sb.append("fps_sem_foco.limite_minimizado=").append(props.getProperty("fps_sem_foco.limite_minimizado")).append('\n');
+        sb.append("fps_sem_foco.limite_minimizado=").append(props.getProperty("fps_sem_foco.limite_minimizado")).append("\n\n");
+        sb.append("# Tempo de tick (ms) a partir do qual o diagnostico_lag registra o travamento,\n");
+        sb.append("# e intervalo minimo (s) entre dois registros.\n");
+        sb.append("diagnostico_lag.limite_ms=").append(props.getProperty("diagnostico_lag.limite_ms")).append('\n');
+        sb.append("diagnostico_lag.intervalo_s=").append(props.getProperty("diagnostico_lag.intervalo_s")).append('\n');
         try {
             Files.createDirectories(caminho.getParent());
             try (Writer writer = Files.newBufferedWriter(caminho, StandardCharsets.UTF_8)) {

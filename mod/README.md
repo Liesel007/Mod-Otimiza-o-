@@ -5,7 +5,7 @@ Mod de otimização feito a partir do estudo do código dos mods do modpack HL
 **código próprio** (sem copiar código dos outros mods, que têm licenças diferentes) e **corrige erros**
 encontrados neles.
 
-**Jar pronto:** [`releases/hlotimizacao-0.1.1.jar`](../releases/hlotimizacao-0.1.1.jar). Basta colocá-lo
+**Jar pronto:** [`releases/hlotimizacao-0.1.2.jar`](../releases/hlotimizacao-0.1.2.jar). Basta colocá-lo
 na pasta `mods` da instância.
 
 ## Como ele convive com os mods do pack
@@ -31,7 +31,9 @@ O log mostra, na inicialização, o estado de cada módulo e o motivo
 | `fps_sem_foco` | Dynamic FPS | `dynamic_fps` | cliente |
 | `toasts_vazios` | BadOptimizations | `badoptimizations` | cliente |
 | `correcao_fastasyncworldsave` | (correção) | só liga se `fastasyncworldsave` estiver instalado | servidor |
-| `relatorio_conflitos` | (diagnóstico) | — | servidor |
+| `relatorio_conflitos` | (diagnóstico) | — | servidor e cliente |
+| `tooltip_seguro` | (correção) | — | cliente |
+| `diagnostico_lag` | (diagnóstico) | — | servidor |
 
 ## Erros dos outros mods que este mod corrige
 
@@ -47,7 +49,32 @@ O log mostra, na inicialização, o estado de cada módulo e o motivo
 | GPU Memory Leak Fix | Usa `finalize()`, depreciado no Java e mais lento para o GC. | Usa `java.lang.ref.Cleaner`, e só enfileira os IDs; a liberação acontece na thread de render. |
 | FastSuite + Recipe Essentials | Os dois substituem o `RecipeManager`; só o do Recipe Essentials fica ativo e a busca paralela do FastSuite não é usada. A opção `cacheRecipes` do Recipe Essentials também não desliga essa troca. | `relatorio_conflitos` mostra no log qual gerenciador está ativo e recomenda remover um dos dois. |
 
-O `relatorio_conflitos` também avisa sobre Starlight, Ksyxis e Connectivity (ver `docs/aprendizados.md`).
+O `relatorio_conflitos` também avisa sobre Starlight, Ksyxis e Connectivity (ver `docs/aprendizados.md`), e
+desde a 0.1.2 verifica na inicialização:
+- arquivos cujo nome indica outra versão do Minecraft; vira alerta só se o mod não declarar uma faixa que inclua
+  a 1.20.1 (quando declara, sai como informação "provavelmente ok", porque o Forge já confere essa faixa);
+- dependências opcionais instaladas fora da versão exigida (ex.: Polymorph com JEI mais antigo que o pedido);
+- End Enchanting Table junto com Apotheosis ou Tool Leveling+;
+- Rechiseled: Create sem o Rechiseled.
+
+## Novos módulos da 0.1.2
+
+**`tooltip_seguro`** — protege contra o crash `NullPointerException` em `StringDecomposer.iterateFormatted`
+(`"p_14312_" is null`), causado por uma linha de tooltip `Component.literal(null)`. A linha vira uma linha vazia e
+o log avisa **uma vez por item**, com o id do item e a origem:
+- `o proprio item (mod X)`: a linha nula veio do próprio item (caso do Silent Gear `blueprint_package`);
+- `outro mod, por um ouvinte do ItemTooltipEvent` ou `pelo RenderTooltipEvent.GatherComponents`: veio de outro
+  mod. O Forge não informa qual ouvinte adicionou a linha, então nesses casos não dá para dizer o mod exato.
+
+**`diagnostico_lag`** — quando o servidor fica parado mais que `diagnostico_lag.limite_ms` (padrão 2000):
+1. **durante** o travamento, registra a pilha da thread do servidor (mostra qual código está segurando o tick,
+   por exemplo a geração de chunks de uma dimensão);
+2. **ao fim** do tick lento, registra por dimensão: jogadores, chunks prontos e parciais, chunks carregados e
+   **gerados durante o travamento**, entidades (total e as 5 mais comuns) e block entities que tickam (total e as
+   5 mais comuns).
+
+Também detecta travamentos **entre** ticks (tarefas de chunk executadas enquanto o servidor espera o próximo tick).
+Ignora o jogo pausado no singleplayer. No máximo 1 registro a cada `diagnostico_lag.intervalo_s` (padrão 30).
 
 ## Como foi testado
 
@@ -68,6 +95,28 @@ Teste de antes e depois com números: [`docs/benchmark.md`](../docs/benchmark.md
   e o funcionamento junto com o pack HL completo. Teste num mundo de cópia antes de usar no mundo principal.
 
 ## Histórico de versões
+
+### 0.1.2
+- Novo módulo `tooltip_seguro` e novo módulo `diagnostico_lag` (acima).
+- `relatorio_conflitos`: verificação de versões no nome dos arquivos, dependências opcionais fora da versão,
+  End Enchanting Table + Apotheosis/Tool Leveling+, Rechiseled: Create sem Rechiseled.
+- `salvamento_assincrono`: gravações pendentes também são esperadas (até 10 s) se o processo fechar sem
+  `ServerStoppedEvent` (crash, `System.exit`), com aviso de quantas ficaram. Um "finalizar processo" forçado pelo
+  sistema não executa esse código. Fechar a janela do jogo normalmente já passava pelo `ServerStoppedEvent`.
+  A correção do Fast Async World Save ganhou a mesma proteção.
+- Log de debug quando a verificação de `save(File)` próprio falha.
+- `vazamento_gpu`: não vincula mais framebuffer/textura 0 ao liberar; o estado vinculado fica intacto.
+
+Testes (servidor dedicado e cliente em tela virtual, no ambiente de teste):
+- tooltip: sem o módulo, os 3 casos (item próprio, ItemTooltipEvent, GatherComponents) reproduzem o crash do
+  pack (`"p_14312_" is null`); com o módulo, 9 de 9 chamadas sem erro, um aviso por item com a origem certa;
+- lag: travamento controlado de 3 s e geração síncrona de 169 chunks novos (13 s) registrados com a pilha
+  (`ServerChunkCache.getChunk`) e o relatório ("169 chunks carregados, dos quais 169 gerados agora"); o limite de 1
+  registro a cada 30 s foi respeitado;
+- nomes: 26 nomes reais do pack, incluindo `1.20.[0-4]`, `1.18-1.20.4` e `1.18x-1.21x`, reconhecidos como compatíveis;
+- desligamento: 5 gravações pendentes concluídas em 0,4 s; com 37 gravações grandes, esperou 10 s e avisou que 9
+  não terminaram.
+- Não testado aqui: um crash real do cliente e o caso exato do Windows.
 
 ### 0.1.1
 Correção no módulo `salvamento_assincrono` (relatado no Windows com o Goblin Traders):

@@ -54,8 +54,10 @@ public final class LiberadorGpu {
             if (ids == null) {
                 return;
             }
-            GlStateManager._bindTexture(0);
-            GlStateManager._glBindFramebuffer(36160, 0); // GL_FRAMEBUFFER
+            // Nao mexe no que esta vinculado: um objeto que vazou nao esta em uso, e o OpenGL ja desvincula
+            // sozinho um objeto apagado. TextureUtil.releaseTextureId tambem limpa o cache de texturas
+            // vinculadas do GlStateManager. Antes, vincular 0 aqui podia trocar o estado de quem estava
+            // desenhando.
             if (ids[0] > -1) {
                 GlStateManager._glDeleteFramebuffers(ids[0]);
             }

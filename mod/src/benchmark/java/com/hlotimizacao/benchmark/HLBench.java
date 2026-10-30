@@ -38,10 +38,17 @@ import java.util.Random;
 public class HLBench {
     static final Logger LOGGER = LoggerFactory.getLogger("HLBENCH");
 
+    static final net.minecraftforge.registries.DeferredRegister<net.minecraft.world.item.Item> ITENS =
+            net.minecraftforge.registries.DeferredRegister.create(net.minecraftforge.registries.ForgeRegistries.ITEMS, "hlbench");
+    static final net.minecraftforge.registries.RegistryObject<net.minecraft.world.item.Item> ITEM_RUIM =
+            ITENS.register("item_ruim", TesteTooltip.ItemRuim::new);
+
     public HLBench() {
+        ITENS.register(net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext.get().getModEventBus());
         MinecraftForge.EVENT_BUS.addListener(this::registrarComandos);
         if (FMLEnvironment.dist == Dist.CLIENT) {
             MinecraftForge.EVENT_BUS.addListener(FpsCliente::aoTick);
+            TesteTooltip.registrarOuvintes();
         }
     }
 
@@ -59,6 +66,14 @@ public class HLBench {
                                 .executes(c -> seguro(c, HLBench::criarMobs))))
                 .then(Commands.literal("contar").executes(c -> seguro(c, HLBench::contarMobs)))
                 .then(Commands.literal("esvaziar").executes(c -> seguro(c, HLBench::esvaziar)))
+                .then(Commands.literal("travar").then(Commands.argument("ms", IntegerArgumentType.integer(1))
+                        .executes(c -> seguro(c, TesteLag::travar))))
+                .then(Commands.literal("gerar").then(Commands.argument("raio", IntegerArgumentType.integer(0, 20))
+                        .executes(c -> seguro(c, TesteLag::gerar))))
+                .then(Commands.literal("nomes").executes(c -> seguro(c, TesteLag::nomes)))
+                .then(Commands.literal("pendentes").then(Commands.argument("quantidade", IntegerArgumentType.integer(1))
+                        .then(Commands.argument("mb", IntegerArgumentType.integer(1))
+                                .executes(c -> seguro(c, TesteLag::pendentes)))))
                 .then(Commands.literal("salvamento")
                         .then(Commands.literal("preparar").executes(c -> seguro(c, TesteSalvamento::preparar)))
                         .then(Commands.literal("verificar").executes(c -> seguro(c, TesteSalvamento::verificar)))));
