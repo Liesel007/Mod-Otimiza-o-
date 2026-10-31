@@ -5,7 +5,7 @@ Mod de otimização feito a partir do estudo do código dos mods do modpack HL
 **código próprio** (sem copiar código dos outros mods, que têm licenças diferentes) e **corrige erros**
 encontrados neles.
 
-**Jar pronto:** [`releases/hlotimizacao-0.1.3.jar`](../releases/hlotimizacao-0.1.3.jar). Basta colocá-lo
+**Jar pronto:** [`releases/hlotimizacao-0.1.4.jar`](../releases/hlotimizacao-0.1.4.jar). Basta colocá-lo
 na pasta `mods` da instância.
 
 ## Como ele convive com os mods do pack
@@ -30,6 +30,7 @@ O log mostra, na inicialização, o estado de cada módulo e o motivo
 | `vazamento_gpu` | GPU Memory Leak Fix | `gpumemleakfix` | cliente |
 | `fps_sem_foco` | Dynamic FPS | `dynamic_fps` | cliente |
 | `toasts_vazios` | BadOptimizations | `badoptimizations` | cliente |
+| `correcao_infinity_chest` | (correção) | só liga com o Re-Avaritia 1.4.2 instalado | servidor e cliente |
 | `correcao_fastasyncworldsave` | (correção) | só liga se `fastasyncworldsave` estiver instalado | servidor |
 | `relatorio_conflitos` | (diagnóstico) | — | servidor e cliente |
 | `tooltip_seguro` | (correção) | — | cliente |
@@ -47,6 +48,9 @@ O log mostra, na inicialização, o estado de cada módulo e o motivo
 | Fast Async World Save | Chama `save(CompoundTag)` direto e **ignora** mods cujo `SavedData` sobrescreve `save(File)` (formato próprio). | Detecta essas classes e as salva do jeito delas. |
 | Fast Async World Save | Entrega para a outra thread o mesmo `CompoundTag` que o mod devolveu; se o mod continua alterando esse tag, a gravação pode sair corrompida. | Copia o tag na thread principal antes de gravar. |
 | GPU Memory Leak Fix | Usa `finalize()`, depreciado no Java e mais lento para o GC. | Usa `java.lang.ref.Cleaner`, e só enfileira os IDs; a liberação acontece na thread de render. |
+| Re-Avaritia 1.4.2 | `StorageUtils.getItem` grava a chave com `#hash` no cache item -> id: cada item com NBT que entra no Infinity Chest ganha mais um `#hash` na chave, nada se junta e o baú cresce sem limite (3000 entradas e chaves de 51 mil caracteres no teste; inserir 1100 itens passou de 0,6 s para 16 s). | `correcao_infinity_chest`: cache correto e thread-safe; conserta as chaves ao abrir o mundo (com cópia `.dat.antes_hl`). Detalhes em [`docs/avaritia-infinity-chest.md`](../docs/avaritia-infinity-chest.md). |
+| Re-Avaritia 1.4.2 | Salva todos os Infinity Chests a cada `LevelEvent.Save`, que vem **uma vez por dimensão**, mesmo sem mudanças, na thread do servidor. | Salva uma vez por save (overworld), só os baús alterados, gravando em outra thread. |
+| Re-Avaritia 1.4.2 | Tirar parte dos itens apaga o NBT dos que ficam; funis tirando os últimos itens recebem itens sem NBT; o item que sai compartilha o NBT com o baú. | Só apaga o NBT quando o item sai inteiro, devolve o NBT nos últimos itens e entrega uma cópia. |
 | FastSuite + Recipe Essentials | Os dois substituem o `RecipeManager`; só o do Recipe Essentials fica ativo e a busca paralela do FastSuite não é usada. A opção `cacheRecipes` do Recipe Essentials também não desliga essa troca. | `relatorio_conflitos` mostra no log qual gerenciador está ativo e recomenda remover um dos dois. |
 
 O `relatorio_conflitos` também avisa sobre Starlight, Ksyxis e Connectivity (ver `docs/aprendizados.md`), e
@@ -102,6 +106,28 @@ Teste de antes e depois com números: [`docs/benchmark.md`](../docs/benchmark.md
   e o funcionamento junto com o pack HL completo. Teste num mundo de cópia antes de usar no mundo principal.
 
 ## Histórico de versões
+
+### 0.1.4
+Novo módulo `correcao_infinity_chest` para o lag do Infinity Chest do Re-Avaritia 1.4.2 (causa e números em
+[`docs/avaritia-infinity-chest.md`](../docs/avaritia-infinity-chest.md)):
+- corrige o cache de ids do `StorageUtils` que fazia as chaves crescerem a cada item com NBT;
+- ao abrir o mundo, conserta as chaves que já cresceram, somando as quantidades, e loga o resultado por baú. O
+  arquivo original fica copiado como `<id>.dat.antes_hl`;
+- salva os baús uma vez por save (não uma por dimensão), só os alterados, gravando em outra thread;
+- corrige três perdas de NBT ao tirar itens.
+
+Liga sozinho só com o Re-Avaritia 1.4.2. Com outra versão, fica desligado (pode ser forçado com `on`).
+`/hlotimizacao status` mostra quantos baús foram gravados, quantos foram pulados por não terem mudado, quantos
+salvamentos repetidos foram evitados e quantas chaves foram consertadas.
+
+Testes (servidor dedicado com o Re-Avaritia 1.4.2, comandos `/hlbench avaritia ...`, rodar com
+`./gradlew runServer -PcomAvaritia`):
+- sem o módulo: 3 rodadas de 1100 itens levaram 660 ms, 6 s e 16 s, e o baú ficou com 3001 entradas. Com o
+  módulo: 25 a 57 ms por rodada, com 11 entradas;
+- autosave com o baú grande: 3,4 s sem o módulo e 2,8 ms com ele;
+- reparo do mundo salvo sem o módulo: de 3001 para 11 entradas, com as quantidades conferidas no arquivo;
+- NBT ao tirar itens: preservado;
+- sem o Re-Avaritia instalado, o módulo fica desligado e o servidor abre normalmente.
 
 ### 0.1.3
 Feita a partir do relatório do `latest.log` de uma sessão de 1h18 com ~440 mods.

@@ -113,6 +113,17 @@ public final class Config {
             ativo = false;
             motivo = "nao necessario: fastasyncworldsave nao esta instalado";
         }
+        if (modulo == Modulo.CORRECAO_INFINITY_CHEST && ativo) {
+            String versao = versaoMod("avaritia");
+            if (versao == null) {
+                ativo = false;
+                motivo = "nao necessario: avaritia (Re-Avaritia) nao esta instalado";
+            } else if (!VERSAO_AVARITIA.equals(versao) && !valor.equals("on") && !valor.equals("true") && !valor.equals("ligado")) {
+                ativo = false;
+                motivo = "desligado automaticamente: feito para o Re-Avaritia " + VERSAO_AVARITIA + ", instalado " + versao
+                        + " (use on para forcar)";
+            }
+        }
         ATIVOS.put(modulo, ativo);
         MOTIVOS.put(modulo, motivo);
     }
@@ -156,6 +167,23 @@ public final class Config {
     public static Set<String> salvamentoSerializarClasses() {
         carregar();
         return salvamentoSerializarClasses;
+    }
+
+    /** Versao do Re-Avaritia para a qual os mixins do modulo correcao_infinity_chest foram escritos. */
+    public static final String VERSAO_AVARITIA = "1.4.2";
+
+    /** Versao declarada pelo mod, ou null se nao estiver instalado. */
+    public static String versaoMod(String modId) {
+        LoadingModList lista = LoadingModList.get();
+        if (lista == null) {
+            return null;
+        }
+        var arquivo = lista.getModFileById(modId);
+        if (arquivo == null) {
+            return null;
+        }
+        return arquivo.getMods().stream().filter(m -> m.getModId().equals(modId)).findFirst()
+                .map(m -> m.getVersion().toString()).orElse("?");
     }
 
     public static boolean modInstalado(String modId) {
