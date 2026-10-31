@@ -153,3 +153,16 @@ Cupboard (log de carga síncrona de chunk), Connectivity (estatísticas de rede)
   "da vez" de cada entidade é espalhado pelo id (`(tempo + id) % N`), para não processar todas juntas no mesmo tick.
 - **`limite_enxame`:** o `MobSpawnEvent.FinalizeSpawn` do Forge diz o tipo de spawn (natural, spawner, ovo, comando...)
   e permite cancelar. A contagem usa a busca de entidades por seção do próprio Minecraft numa caixa de 3x3 chunks.
+
+## 8. Técnicas usadas na 0.2.2 (inserção em inventários grandes)
+
+- **Um ponto genérico:** quase toda máquina insere pelo `ItemHandlerHelper.insertItemStacked` do Forge; um `@Inject`
+  nele cobre todos os produtores de uma vez.
+- **Cache que nunca decide sozinho:** o cache só escolhe *onde tentar primeiro*; quem aceita ou recusa é o `insertItem`
+  do próprio inventário. Cache errado vira uma varredura normal, nunca um item no lugar errado ou perdido. Para a posição
+  ser idêntica à do Forge, a dica guardada é "o slot mais baixo que aceitou este item" e "o primeiro vazio com todos os
+  anteriores ocupados" — os mesmos slots que a varredura do Forge escolheria.
+- **Atalho por inventário:** quando o inventário ignora o número do slot (Infinity Chest), a varredura inteira é
+  desnecessária e o atalho é exatamente equivalente.
+- **Orçamento por tick:** transforma um travamento em itens esperando um ou dois ticks na máquina; opcional, porque
+  depende de cada máquina tratar "inventário cheio".

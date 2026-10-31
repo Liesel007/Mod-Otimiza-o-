@@ -13,6 +13,8 @@
     "lag.LevelAccessor",
     "lag.ChunkMapAccessor",
     "ativacao.ServerLevelAtivacaoMixin",
+    "insercao.ItemHandlerHelperMixin",
+    "insercao.BlockEntityTickandoMixin",
     "avaritia.StorageUtilsMixin",
     "avaritia.ChestHandlerMixin",
     "avaritia.ServerChestMixin",

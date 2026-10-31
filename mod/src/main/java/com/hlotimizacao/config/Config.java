@@ -64,6 +64,10 @@ public final class Config {
         EDITAVEIS.put("alcance_ativacao.dimensoes_ignoradas", "Dimensoes onde o alcance de ativacao nao age");
         EDITAVEIS.put("limite_enxame.lista", "Limite por tipo na regiao (tipo=numero, separados por virgula)");
         EDITAVEIS.put("limite_enxame.raio_chunks", "Raio da regiao em chunks (1 = o chunk e os 8 vizinhos)");
+        EDITAVEIS.put("insercao_rapida.limite_slots", "Inventarios com pelo menos este numero de slots usam a insercao rapida");
+        EDITAVEIS.put("insercao_rapida.varreduras_max_por_tick", "Varreduras completas por inventario por tick antes do orcamento recusar (se ligado)");
+        EDITAVEIS.put("insercao_rapida.orcamento", "Recusar insercoes alem do limite de varreduras no tick (true/false; teste as maquinas antes)");
+        EDITAVEIS.put("insercao_rapida.ignorar", "Classes ou pacotes de inventarios que a insercao rapida nao toca (prefixos, separados por virgula)");
     }
     private static int fpsSemFoco = 15;
     private static int fpsMinimizado = 1;
@@ -82,6 +86,10 @@ public final class Config {
     private static Set<String> ativacaoDimensoesIgnoradas = Set.of();
     private static Map<String, Integer> enxameLimites = Map.of();
     private static int enxameRaioChunks = 1;
+    private static int insercaoLimiteSlots = 54;
+    private static int insercaoVarredurasMaxPorTick = 4;
+    private static boolean insercaoOrcamento = false;
+    private static Set<String> insercaoIgnorar = Set.of();
     /** Muda a cada leitura dos valores, para quem guarda cache (ex.: excecoes por tipo de entidade). */
     private static volatile int versao;
     private static final String ENXAME_PADRAO = "chaospersists:ant=8,chaospersists:rainbow_ant=4,chaospersists:unstable_ant=4,chaospersists:butterfly=6";
@@ -116,7 +124,7 @@ public final class Config {
             String valor = props.getProperty(chave);
             if (valor == null) {
                 faltando = true;
-                valor = "auto";
+                valor = modulo == Modulo.INSERCAO_RAPIDA ? "off" : "auto"; // opcional: so liga quem pedir
                 props.setProperty(chave, valor);
             }
             decidir(modulo, valor.trim().toLowerCase());
@@ -185,6 +193,10 @@ public final class Config {
         }
         enxameLimites = Map.copyOf(limites);
         enxameRaioChunks = lerInt(props, "limite_enxame.raio_chunks", 1, 0, 4);
+        insercaoLimiteSlots = lerInt(props, "insercao_rapida.limite_slots", 54, 1, 1_000_000);
+        insercaoVarredurasMaxPorTick = lerInt(props, "insercao_rapida.varreduras_max_por_tick", 4, 1, 10_000);
+        insercaoOrcamento = Boolean.parseBoolean(props.getProperty("insercao_rapida.orcamento", "false").trim());
+        insercaoIgnorar = lista(props, "insercao_rapida.ignorar", "");
         versao++;
         limpezaIntervaloMin = lerInt(props, "limpeza_itens.intervalo_min", 10, 1, 1440);
         Set<Integer> avisos = new java.util.TreeSet<>();
@@ -221,6 +233,10 @@ public final class Config {
                 {"alcance_ativacao.dimensoes_ignoradas", ""},
                 {"limite_enxame.lista", ENXAME_PADRAO},
                 {"limite_enxame.raio_chunks", "1"},
+                {"insercao_rapida.limite_slots", "54"},
+                {"insercao_rapida.varreduras_max_por_tick", "4"},
+                {"insercao_rapida.orcamento", "false"},
+                {"insercao_rapida.ignorar", ""},
                 {"limpeza_itens.intervalo_min", Integer.toString(limpezaIntervaloMin)},
                 {"limpeza_itens.avisos_s", "60,30,10,5"},
                 {"limpeza_itens.idade_minima_s", Integer.toString(limpezaIdadeMinimaS)},
@@ -255,6 +271,12 @@ public final class Config {
                 curto = conflito.map(id -> "forçado (" + nomeDoMod(id) + " também instalado)").orElse("ligado na config");
             }
             default -> {
+                if (modulo == Modulo.INSERCAO_RAPIDA) {
+                    ativo = false;
+                    motivo = "desligado por padrao (opcional; use on para ligar)";
+                    curto = "opcional: desligado (use on)";
+                    break;
+                }
                 ativo = conflito.isEmpty();
                 motivo = conflito.map(id -> "desligado automaticamente: " + id + " ja faz isso").orElse("ligado (auto)");
                 curto = conflito.map(id -> "desligado: " + nomeDoMod(id) + " já faz isso").orElse("ligado (auto)");
@@ -435,6 +457,22 @@ public final class Config {
         return enxameLimites;
     }
 
+    public static int insercaoLimiteSlots() {
+        return insercaoLimiteSlots;
+    }
+
+    public static int insercaoVarredurasMaxPorTick() {
+        return insercaoVarredurasMaxPorTick;
+    }
+
+    public static boolean insercaoOrcamento() {
+        return insercaoOrcamento;
+    }
+
+    public static Set<String> insercaoIgnorar() {
+        return insercaoIgnorar;
+    }
+
     public static int enxameRaioChunks() {
         return enxameRaioChunks;
     }
@@ -548,6 +586,12 @@ public final class Config {
         sb.append("# tipo no chunk e nos vizinhos ate raio_chunks. Nunca vale para ovo, comando ou balde, e nunca remove entidades.\n");
         sb.append("limite_enxame.lista=").append(props.getProperty("limite_enxame.lista")).append('\n');
         sb.append("limite_enxame.raio_chunks=").append(props.getProperty("limite_enxame.raio_chunks")).append("\n\n");
+        sb.append("# insercao_rapida (modulo desligado por padrao): inventarios com limite_slots ou mais usam um cache de onde o item\n");
+        sb.append("# coube; orcamento=true recusa a insercao (a maquina tenta no proximo tick) depois de varreduras_max_por_tick varreduras.\n");
+        for (String chave : new String[]{"limite_slots", "varreduras_max_por_tick", "orcamento", "ignorar"}) {
+            sb.append("insercao_rapida.").append(chave).append('=').append(props.getProperty("insercao_rapida." + chave)).append('\n');
+        }
+        sb.append('\n');
         sb.append("# limpeza_itens: a cada intervalo_min minutos apaga os itens soltos no chao, com avisos no chat antes (avisos_s).\n");
         sb.append("# Nunca apaga: itens com menos de idade_minima_s segundos no chao, drops da morte de jogadores, itens_protegidos,\n");
         sb.append("# ovos de spawn, shulker boxes, itens encantados/com nome/com conteudo (proteger_itens_com_nbt) e itens sobre\n");

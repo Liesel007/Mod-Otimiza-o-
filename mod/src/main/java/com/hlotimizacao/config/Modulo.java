@@ -49,6 +49,14 @@ public enum Modulo {
             "Cancela o spawn natural/de spawner de um tipo de entidade quando ja ha muitas dele na regiao (por tipo, configuravel). "
                     + "Nunca remove entidades nem limita ovo, comando ou balde.",
             List.of()),
+    DIAGNOSTICO_INSERCAO("Diagnóstico de inserção", false, "diagnostico_insercao", null,
+            "Durante um travamento, anota qual maquina esta despejando itens em qual inventario grande (e quantos slots ele tem), "
+                    + "para o relatorio de lag e o /hl.",
+            List.of()),
+    INSERCAO_RAPIDA("Inserção rápida", false, "insercao_rapida", null,
+            "Opcional (desligado por padrao): insere itens em inventarios grandes usando um cache de onde o item coube da ultima vez, "
+                    + "sempre validado pelo proprio inventario; se o cache nao serve, faz a varredura normal do Forge.",
+            List.of()),
     RELATORIO_CONFLITOS("Relatório de conflitos", false, "relatorio_conflitos", null,
             "Mostra no log conflitos conhecidos entre mods de otimizacao instalados.",
             List.of());

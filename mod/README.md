@@ -5,7 +5,7 @@ Mod de otimização feito a partir do estudo do código dos mods do modpack HL
 **código próprio** (sem copiar código dos outros mods, que têm licenças diferentes) e **corrige erros**
 encontrados neles.
 
-**Jar pronto:** [`releases/hlotimizacao-0.2.1.jar`](../releases/hlotimizacao-0.2.1.jar). Basta colocá-lo
+**Jar pronto:** [`releases/hlotimizacao-0.2.2.jar`](../releases/hlotimizacao-0.2.2.jar). Basta colocá-lo
 na pasta `mods` da instância.
 
 ## Como ele convive com os mods do pack
@@ -36,6 +36,8 @@ O log mostra, na inicialização, o estado de cada módulo e o motivo
 | `limpeza_itens` | ClearLag | `clearlag`, `clearlagg`, `itemclearer`, `clear_lag` | servidor |
 | `alcance_ativacao` | ServerCore, NoTick, Paper | `servercore`, `notick` | servidor |
 | `limite_enxame` | mobcaps do ServerCore (por tipo) | — | servidor |
+| `diagnostico_insercao` | (diagnóstico) | — | servidor |
+| `insercao_rapida` | (opcional, **desligado por padrão**) | — | servidor |
 | `tooltip_seguro` | (correção) | — | cliente |
 | `diagnostico_lag` | (diagnóstico) | — | servidor |
 
@@ -143,6 +145,58 @@ Teste de antes e depois com números: [`docs/benchmark.md`](../docs/benchmark.md
   e o funcionamento junto com o pack HL completo. Teste num mundo de cópia antes de usar no mundo principal.
 
 ## Histórico de versões
+
+### 0.2.2
+Inserção de itens em inventários grandes, a partir do `latest.log` de 31/10 (17:05–18:45): os 5 maiores
+travamentos (até 142,9 s) eram a Mob Farm do All The Imbaium despejando no Infinity Chest pelo
+`ItemHandlerHelper.insertItemStacked` do Forge, que para **cada pilha** percorre todos os slots (até 2 passadas),
+enquanto o Infinity Chest copia o item em cada `getStackInSlot`.
+
+**Infinity Chest (no módulo `correcao_infinity_chest`, ligado quando o Re-Avaritia está instalado):** o
+`ChestHandler.insertItem` do Re-Avaritia ignora o slot e guarda pela chave do item. Inserir direto dá exatamente o
+mesmo resultado da varredura do Forge, sem a varredura. Teste: 400 pilhas num baú com 5.000 entradas, 656 ms → 2,5 ms
+(260 vezes), conteúdo final idêntico.
+
+**Novo `diagnostico_insercao`:** o `diagnostico_lag` reconhece a inserção na pilha e mostra quem despeja e onde
+(`insercao em inventario grande: alltheimbaium (MobFarmEntity) -> avaritia (ChestHandler)`); durante o travamento anota
+o block entity que estava tickando, a posição dele, o inventário de destino (classe, número de slots e posição) e
+quantas chamadas; e cria o aviso "pelo menos N máquina(s) despejando num inventário de X slots" em `/hl status avisos`
+e na aba Avisos, com a correção no detalhe (um baú comum ou uma rede entre a máquina e o inventário grande).
+
+**Novo `insercao_rapida` (opcional, desligado por padrão):** para inventários com 54 slots ou mais, um cache de "onde
+o item coube da última vez" e do primeiro slot vazio, sempre validado pelo próprio `insertItem` do inventário; quando o
+cache não serve, faz a mesma varredura do Forge. `insercao_rapida.orcamento=true` (também desligado) limita as
+varreduras completas por inventário por tick (padrão 4) e recusa o resto como "inventário cheio neste tick" — a
+máquina tenta de novo no tick seguinte; teste as máquinas antes de ligar, porque alguma pode descartar o item recusado.
+`insercao_rapida.ignorar` lista classes/pacotes de inventários que não devem ser tocados.
+
+Testes (`/hlbench insercao ...`):
+- **Equivalência:** inventários de 27, 108, 1.000 e 5.000 slots, 10.000 pilhas aleatórias (iguais, diferentes, com
+  NBT, que não empilham, e 5% simuladas), original do Forge × inserção rápida: **idênticos slot a slot**, com os mesmos
+  restos devolvidos. Com retiradas feitas por fora no meio: nenhum item criado ou perdido nos dois lados e **nenhuma
+  recusa indevida** (sempre que a inserção rápida devolveu resto, o original não aceitaria mais no mesmo inventário);
+  a posição do item pode mudar depois de uma retirada por fora (o cache não vê a retirada), o total não.
+- **Velocidade** (1.000 pilhas, 5.000 slots que copiam no `getStackInSlot`): saída de farm (10 tipos) 1.384 ms →
+  15,7 ms (**88 vezes**); 1.000 tipos aleatórios entre 4.900 diferentes: sem ganho (cada tipo novo exige uma varredura).
+- **Orçamento** (100 pilhas num inventário cheio de 5.000 slots): 31 ms → 1,6 ms, nenhum item sumiu (96 recusadas e
+  devolvidas).
+- **No mundo:** um Infinity Chest com 5.000 entradas e um inventário de 5.000 slots, cada um com 4 "produtores" em volta
+  (blocos de teste que despejam todo tick pelo `insertItemStacked`, como a Mob Farm):
+
+| Cenário | Módulos desligados | Infinity Chest + `insercao_rapida` | + orçamento |
+|---|---|---|---|
+| sem produção | 9 ms | 8 ms | 9 ms |
+| 20 pilhas por tick em cada produtor | 287 ms (3,5 TPS) | 196 ms (5,1 TPS) | **20 ms (20 TPS)** |
+| rajada de 400 pilhas por tick | **servidor derrubado** (tick de 60 s) | **servidor derrubado** | **18 ms (20 TPS)** |
+
+  O Infinity Chest deixou de pesar em todos os casos (2 milhões de inserções sem varrer). O que sobra sem o orçamento é
+  o inventário de 5.000 slots **lotado**: com ele cheio, toda inserção precisa percorrer tudo para descobrir que não cabe,
+  no Forge e no cache.
+- **Diagnóstico:** nas rajadas, a causa saiu como `insercao em inventario grande ... hlbench (TesteInsercao$Produtor) ->
+  hlbench (TesteInsercao$Copiando)`, com as 4 máquinas e as coordenadas do inventário, e o aviso apareceu em
+  `/hl status avisos`.
+- Não testado aqui: Mob Farm, Storage Drawers, Sophisticated Storage e os outros mods do pack (não estão no ambiente de
+  teste). Não feito ainda: atalhos específicos do Storage Drawers e do Sophisticated Storage, e a extração (puxar).
 
 ### 0.2.1
 **Novo módulo `alcance_ativacao`** (desliga sozinho com ServerCore ou NoTick): entidades a mais de 48 blocos na

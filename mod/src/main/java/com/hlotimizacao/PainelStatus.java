@@ -330,6 +330,9 @@ public final class PainelStatus {
             case RELATORIO_CONFLITOS -> num(RelatorioConflitos.avisosInicializacao) + " avisos na inicialização";
             case ALCANCE_ATIVACAO -> num(com.hlotimizacao.recursos.AlcanceAtivacao.TICKS_PULADOS.get()) + " ticks pulados";
             case LIMITE_ENXAME -> num(com.hlotimizacao.recursos.LimiteEnxame.BLOQUEADOS.get()) + " spawns bloqueados";
+            case DIAGNOSTICO_INSERCAO -> "ativo nos travamentos";
+            case INSERCAO_RAPIDA -> num(com.hlotimizacao.recursos.Insercao.RAPIDAS.get()) + " pelo cache · "
+                    + num(com.hlotimizacao.recursos.Insercao.VARREDURAS.get()) + " varreduras";
             case GATILHO_INVENTARIO, FPS_SEM_FOCO, TOASTS_VAZIOS, CORRECAO_FASTASYNCWORLDSAVE -> "ativo";
         };
     }

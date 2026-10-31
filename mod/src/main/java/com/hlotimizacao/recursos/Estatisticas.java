@@ -66,6 +66,13 @@ public final class Estatisticas {
             linhas.add(String.format("limite_enxame: %d spawn(s) bloqueado(s)%s", LimiteEnxame.BLOQUEADOS.get(),
                     LimiteEnxame.BLOQUEADOS.get() == 0 ? "" : " (" + LimiteEnxame.porTipo() + ")"));
         }
+        if (Config.ativo(Modulo.CORRECAO_INFINITY_CHEST) && Insercao.ATALHO_AVARITIA.get() > 0) {
+            linhas.add(String.format("correcao_infinity_chest: %d insercao(oes) no Infinity Chest sem varrer os slots", Insercao.ATALHO_AVARITIA.get()));
+        }
+        if (Config.ativo(Modulo.INSERCAO_RAPIDA)) {
+            linhas.add(String.format("insercao_rapida: %d insercao(oes) pelo cache, %d varredura(s) completa(s), %d recusada(s) pelo orcamento",
+                    Insercao.RAPIDAS.get(), Insercao.VARREDURAS.get(), Insercao.RECUSADAS.get()));
+        }
         if (DiagnosticoAmbiente.arquivosLentos() > 0) {
             linhas.add(String.format("arquivos que demoraram mais de 500 ms para abrir ao gravar: %d (antivirus?)", DiagnosticoAmbiente.arquivosLentos()));
         }

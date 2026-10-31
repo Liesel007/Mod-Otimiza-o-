@@ -45,6 +45,8 @@ public class HLBench {
 
     public HLBench() {
         ITENS.register(net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext.get().getModEventBus());
+        TesteInsercao.BLOCOS.register(net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext.get().getModEventBus());
+        TesteInsercao.BES.register(net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext.get().getModEventBus());
         MinecraftForge.EVENT_BUS.addListener(this::registrarComandos);
         if (FMLEnvironment.dist == Dist.CLIENT) {
             MinecraftForge.EVENT_BUS.addListener(FpsCliente::aoTick);
@@ -84,6 +86,13 @@ public class HLBench {
                 .then(Commands.literal("painel").executes(c -> seguro(c, TestePainel::verificar)))
                 .then(Commands.literal("causas").executes(c -> seguro(c, TesteCausas::verificar)))
                 .then(Commands.literal("rede").executes(c -> seguro(c, TesteRede::verificar)))
+                .then(Commands.literal("insercao")
+                        .then(Commands.literal("equivalencia").executes(c -> seguro(c, TesteInsercao::equivalencia)))
+                        .then(Commands.literal("velocidade").executes(c -> seguro(c, TesteInsercao::velocidade)))
+                        .then(Commands.literal("orcamento").executes(c -> seguro(c, TesteInsercao::orcamento)))
+                        .then(Commands.literal("montar").executes(c -> seguro(c, TesteInsercao::montar)))
+                        .then(Commands.literal("produzir").then(Commands.argument("pilhas_por_tick", IntegerArgumentType.integer(0))
+                                .executes(c -> seguro(c, TesteInsercao::produzir)))))
                 .then(Commands.literal("entidades")
                         .then(Commands.literal("jogador").executes(c -> seguro(c, TesteEntidades::jogador)))
                         .then(Commands.literal("criar").then(Commands.argument("n", IntegerArgumentType.integer(1))

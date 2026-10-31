@@ -35,6 +35,10 @@ public class HLMixinPlugin implements IMixinConfigPlugin {
 
     @Override
     public boolean shouldApplyMixin(String targetClassName, String mixinClassName) {
+        if (mixinClassName.startsWith(RAIZ + "mixin.insercao.")) {
+            // Um ponto so (a insercao do Forge) serve ao diagnostico, ao atalho do Infinity Chest e a insercao_rapida.
+            return Config.ativo(Modulo.DIAGNOSTICO_INSERCAO) || Config.ativo(Modulo.INSERCAO_RAPIDA) || Config.ativo(Modulo.CORRECAO_INFINITY_CHEST);
+        }
         for (Modulo modulo : Modulo.values()) {
             if (modulo.pacoteMixin != null && mixinClassName.startsWith(RAIZ + modulo.pacoteMixin + ".")) {
                 return Config.ativo(modulo);

@@ -408,11 +408,13 @@ public final class DiagnosticoLag {
     public static final String GRAVACAO_DISCO = "gravacao em disco";
     public static final String COMPRESSAO = "compressao ao salvar";
     public static final String CARREGANDO_CLASSES = "carregamento de classes";
+    public static final String INSERCAO = "insercao em inventario grande";
     private static final Map<String, String> EXPLICACAO = Map.of(
             CHUNK_SINCRONO, "o servidor esperou um chunk ficar pronto; comum ao teleportar ou viajar rapido",
             GRAVACAO_DISCO, "abrindo ou gravando arquivo; se for frequente, veja o antivirus",
             COMPRESSAO, "comprimindo dados ao salvar",
-            CARREGANDO_CLASSES, "acontece uma vez por classe, normalmente logo depois de entrar no mundo");
+            CARREGANDO_CLASSES, "acontece uma vez por classe, normalmente logo depois de entrar no mundo",
+            INSERCAO, "uma maquina inserindo itens num inventario com muitos slots; o Forge percorre todos os slots para cada pilha");
     /** Frames de mod mais fundos que isso nao contam como causa (estao so "embrulhando" a chamada). */
     static final int PROFUNDIDADE_MAXIMA = 12;
 
@@ -431,6 +433,7 @@ public final class DiagnosticoLag {
             case GRAVACAO_DISCO -> "gravação em disco";
             case COMPRESSAO -> "compressão";
             case CARREGANDO_CLASSES -> "carregar classes";
+            case INSERCAO -> "inserção em inventário";
             case SEM_MOD -> "Minecraft/Forge";
             default -> chave;
         };
@@ -450,6 +453,16 @@ public final class DiagnosticoLag {
             }
         }
         return false;
+    }
+
+    private static String classeCurta(StackTraceElement f) {
+        String classe = f.getClassName();
+        return classe.substring(classe.lastIndexOf('.') + 1);
+    }
+
+    /** Um travamento esta sendo registrado agora (a vigia passou do limite)? */
+    public static boolean travando() {
+        return atual != null;
     }
 
     private static String nomeCurto(StackTraceElement f) {
@@ -512,7 +525,19 @@ public final class DiagnosticoLag {
                 }
             }
         }
-        // 2. Disco e compressao, pelo topo da pilha.
+        // 2. Insercao de itens: ItemHandlerHelper.insertItemStacked/insertItem perto do topo. Onde = o mod acima
+        //    dele (o inventario); quem = o primeiro mod abaixo (a maquina que despeja).
+        for (int i = 0; i < Math.min(pilha.length, 15); i++) {
+            if (pilha[i].getClassName().equals("net.minecraftforge.items.ItemHandlerHelper")
+                    && (pilha[i].getMethodName().equals("insertItemStacked") || pilha[i].getMethodName().equals("insertItem"))) {
+                StackTraceElement onde = primeiroDeMod(pilha, 0, i);
+                StackTraceElement quem = primeiroDeMod(pilha, i + 1, i + 25);
+                String detalhe = (quem == null ? "?" : modDoFrame(quem) + " (" + classeCurta(quem) + ")") + " -> "
+                        + (onde == null ? "inventario" : modDoFrame(onde) + " (" + classeCurta(onde) + ")");
+                return new Causa(INSERCAO, detalhe);
+            }
+        }
+        // 3. Disco e compressao, pelo topo da pilha.
         for (int i = 0; i < Math.min(pilha.length, 6); i++) {
             String c = pilha[i].getClassName();
             String m = pilha[i].getMethodName();
@@ -674,6 +699,10 @@ public final class DiagnosticoLag {
         String principal = porMod.entrySet().stream().max(Map.Entry.comparingByValue()).map(Map.Entry::getKey).orElse(SEM_MOD);
         String pilhaResumida = amostras.isEmpty() ? "(sem amostras)" : resumirPilha(amostras.get(0));
         int inicioDimensoes = sb.length();
+        String insercoes = Insercao.relatorioDoTravamento();
+        if (insercoes != null) {
+            sb.append(insercoes);
+        }
         String tipo = tipo(amostras);
         if (tipo != null) {
             sb.append("  Tipo: ").append(tipo).append('\n');
