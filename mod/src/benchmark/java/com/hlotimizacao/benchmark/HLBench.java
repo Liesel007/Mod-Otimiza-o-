@@ -78,6 +78,7 @@ public class HLBench {
                 .then(Commands.literal("salvarlento").then(Commands.argument("ms", IntegerArgumentType.integer(1))
                         .executes(c -> seguro(c, TesteLag013::salvarLento))))
                 .then(Commands.literal("permitido").executes(c -> seguro(c, TesteLag013::conferirPermitido)))
+                .then(Commands.literal("painel").executes(c -> seguro(c, TestePainel::verificar)))
                 .then(Commands.literal("itens")
                         .then(Commands.literal("espalhar").then(Commands.argument("n", IntegerArgumentType.integer(1))
                                 .then(Commands.argument("chunks_lado", IntegerArgumentType.integer(1, 30))

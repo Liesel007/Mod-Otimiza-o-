@@ -5,7 +5,7 @@ Mod de otimização feito a partir do estudo do código dos mods do modpack HL
 **código próprio** (sem copiar código dos outros mods, que têm licenças diferentes) e **corrige erros**
 encontrados neles.
 
-**Jar pronto:** [`releases/hlotimizacao-0.1.4.jar`](../releases/hlotimizacao-0.1.4.jar). Basta colocá-lo
+**Jar pronto:** [`releases/hlotimizacao-0.1.5.jar`](../releases/hlotimizacao-0.1.5.jar). Basta colocá-lo
 na pasta `mods` da instância.
 
 ## Como ele convive com os mods do pack
@@ -84,7 +84,11 @@ Ignora o jogo pausado no singleplayer. No máximo 1 registro a cada `diagnostico
 
 | Comando | Quem pode | O que faz |
 |---|---|---|
-| `/hl status` | todos | MSPT médio e pico dos últimos 100 ticks, módulos ligados e o que cada um fez |
+| `/hl status` | todos | visão geral: TPS, MSPT, memória, sessão, módulos, limpeza, lag e avisos (cores, dicas e cliques) |
+| `/hl status modulos` | todos | uma linha por módulo, com o motivo dos desligados; detalhes ao passar o mouse |
+| `/hl status desempenho` | todos | TPS, MSPT (mín/máx sem os ticks de salvamento), último salvamento, memória, pausas de GC, dimensões, Java |
+| `/hl status lag` | todos | travamentos da sessão: total, pior, mods mais culpados e os últimos 3 |
+| `/hl status avisos` | todos | todos os avisos do relatório de conflitos e os que aparecem durante o jogo, com a correção ao passar o mouse |
 | `/hl recarregar` | operador | relê da config os limites, listas e intervalos (ligar/desligar módulo exige reiniciar) |
 | `/hl limpar` | operador | limpa os itens do chão daqui a 10 s (`limpeza_itens`) |
 | `/hl limpar cancelar` | operador | pula a próxima limpeza |
@@ -116,6 +120,29 @@ Teste de antes e depois com números: [`docs/benchmark.md`](../docs/benchmark.md
   e o funcionamento junto com o pack HL completo. Teste num mundo de cópia antes de usar no mundo principal.
 
 ## Histórico de versões
+
+### 0.1.5
+`/hl status` reorganizado em páginas (ver a tabela de comandos acima):
+- **Visão geral** que cabe numa tela de chat: TPS, MSPT e memória com cores (verde/amarelo/vermelho), tempo de
+  sessão, módulos ligados/desligados, próxima limpeza de itens, resumo do lag e dos avisos. Cada linha leva à
+  página de detalhes com um clique.
+- **Módulos** com nome amigável, ✔/✘/– e o motivo dos desligados ("desligado: Icterine já faz isso"); ao passar o
+  mouse, a descrição, a linha da config e o texto completo. No servidor dedicado, os módulos só de cliente mostram
+  "(só no cliente)".
+- **Pico de MSPT sem os ticks de salvamento:** os ticks em que o mundo foi salvo aparecem à parte ("último
+  salvamento: 2,1 s às 05:59:31"), para um único autosave lento não parecer um problema grave.
+- **Lag:** o `diagnostico_lag` guarda os últimos 20 travamentos e o tempo atribuído a cada mod na sessão.
+- **Avisos:** os avisos do relatório de conflitos (que antes só iam para o log da inicialização) ficam guardados,
+  junto com os que aparecem durante o jogo (classes síncronas, arquivos lentos, pausas longas de GC).
+- Novo: pausas da coleta de lixo acima de 500 ms são contadas (`GarbageCollectorMXBean`).
+- Números em português (`1.204`, `38,2`), tempos legíveis (`1h 27min`, `6min 12s`), linhas de até ~55 caracteres.
+- No console do servidor, a mesma saída sem `✔ ✘ ⚠ ━ · …`.
+
+Testes (servidor dedicado): o `/hlbench painel` monta as 5 páginas no modo chat e no modo console com contadores
+falsos e grandes: 92 linhas, nenhuma acima de 60 caracteres, nenhum `null`, nenhum símbolo no console, 30 partes
+clicáveis e 142 com dica. As páginas foram conferidas no console com dois travamentos reais, um `save-all` e os
+avisos da inicialização. Não testado aqui: o chat de um cliente de verdade (cores, dicas e cliques foram conferidos
+nos componentes, não na tela).
 
 ### 0.1.4
 Feita a partir do documento de ideias para a 0.1.4 (log de 31/10 e save "New World").

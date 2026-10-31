@@ -2,7 +2,6 @@ package com.hlotimizacao;
 
 import com.hlotimizacao.config.Config;
 import com.hlotimizacao.config.Modulo;
-import com.hlotimizacao.recursos.Estatisticas;
 import com.hlotimizacao.recursos.LimpezaItens;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
@@ -11,10 +10,8 @@ import com.mojang.brigadier.tree.LiteralCommandNode;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
-import net.minecraft.server.MinecraftServer;
 import net.minecraftforge.event.RegisterCommandsEvent;
 
-import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -23,6 +20,8 @@ import java.util.List;
  */
 public final class Comandos {
     private static boolean avisouHl;
+    /** Prefixo em uso ("hl" ou "hlotimizacao"), para os cliques do /hl status. */
+    private static volatile String prefixo = "hl";
 
     private Comandos() {
     }
@@ -35,16 +34,22 @@ public final class Comandos {
                 avisouHl = true;
                 Config.LOGGER.warn("Outro mod ja registrou o comando /hl; os comandos do HL Otimizacao ficam em /hlotimizacao");
             }
+            prefixo = HLOtimizacao.MOD_ID;
             dispatcher.register(arvore(HLOtimizacao.MOD_ID));
             return;
         }
+        prefixo = "hl";
         LiteralCommandNode<CommandSourceStack> hl = dispatcher.register(arvore("hl"));
         dispatcher.register(Commands.literal(HLOtimizacao.MOD_ID).redirect(hl));
     }
 
     private static LiteralArgumentBuilder<CommandSourceStack> arvore(String nome) {
         LiteralArgumentBuilder<CommandSourceStack> raiz = Commands.literal(nome)
-                .then(Commands.literal("status").executes(Comandos::status))
+                .then(Commands.literal("status").executes(ctx -> pagina(ctx, PainelStatus::visaoGeral))
+                        .then(Commands.literal("modulos").executes(ctx -> pagina(ctx, PainelStatus::modulos)))
+                        .then(Commands.literal("desempenho").executes(ctx -> pagina(ctx, PainelStatus::desempenho)))
+                        .then(Commands.literal("lag").executes(ctx -> pagina(ctx, PainelStatus::lag)))
+                        .then(Commands.literal("avisos").executes(ctx -> pagina(ctx, PainelStatus::avisos))))
                 .then(Commands.literal("recarregar").requires(s -> s.hasPermission(2)).executes(ctx -> {
                     Config.recarregarValores();
                     responder(ctx, "Configuracao relida (limites, listas e intervalos). Ligar ou desligar modulos exige reiniciar o jogo.");
@@ -74,23 +79,13 @@ public final class Comandos {
         ctx.getSource().sendSuccess(() -> Component.literal(texto), false);
     }
 
-    private static int status(CommandContext<CommandSourceStack> ctx) {
-        MinecraftServer server = ctx.getSource().getServer();
-        long pico = 0;
-        for (long t : server.tickTimes) {
-            pico = Math.max(pico, t);
-        }
-        List<String> ativos = new ArrayList<>();
-        for (Modulo m : Modulo.values()) {
-            if (Config.ativo(m)) {
-                ativos.add(m.chave);
-            }
-        }
-        responder(ctx, String.format("[HL Otimizacao] MSPT medio %.1f ms, pico %.1f ms (ultimos 100 ticks)", server.getAverageTickTime(), pico / 1e6));
-        responder(ctx, "Modulos ligados: " + String.join(", ", ativos));
-        responder(ctx, "Desde que o jogo abriu:");
-        for (String linha : Estatisticas.resumo()) {
-            responder(ctx, "  " + linha);
+    private static int pagina(CommandContext<CommandSourceStack> ctx, java.util.function.Function<PainelStatus, List<Component>> pagina) {
+        CommandSourceStack fonte = ctx.getSource();
+        // Console: sem os simbolos que o console do Windows pode nao mostrar.
+        PainelStatus painel = new PainelStatus(fonte.getServer(), !fonte.isPlayer(), fonte.hasPermission(2), prefixo);
+        for (Component linha : pagina.apply(painel)) {
+            Component saida = fonte.isPlayer() ? linha : Component.literal(PainelStatus.paraConsole(linha.getString()));
+            fonte.sendSuccess(() -> saida, false);
         }
         return 1;
     }

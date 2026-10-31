@@ -136,6 +136,9 @@ public final class VerificadorMods {
                 Config.LOGGER.warn("[Versao] {}: o arquivo e a versao feita para {} (mais nova que a 1.20.1). O mod declara {} e por isso carrega, "
                         + "mas pode usar codigo que nao existe na 1.20.1. Procure o arquivo feito para 1.20.1.",
                         nome, analise.versoes(), faixaDeclarada.orElse("?"));
+                Avisos.adicionar(curtoArquivo(nome) + ": feito para " + String.join("/", analise.versoes()),
+                        nome + " e o arquivo feito para " + analise.versoes() + ", mais nova que a 1.20.1. O mod declara " + faixaDeclarada.orElse("?")
+                                + " e por isso carrega, mas pode usar codigo que nao existe na 1.20.1. Procure o arquivo feito para 1.20.1.");
                 avisos++;
             } else if (declaraCompativel) {
                 Config.LOGGER.info("[Versao] {}: o nome indica {}, mas o mod declara {} (inclui 1.20.1). Provavelmente ok.",
@@ -143,6 +146,9 @@ public final class VerificadorMods {
             } else {
                 Config.LOGGER.warn("[Versao] {}: o nome indica {} e o mod {}. Pode ser a versao errada do mod.",
                         nome, analise.versoes(), faixaDeclarada.map(f -> "declara " + f).orElse("nao declara a versao do Minecraft"));
+                Avisos.adicionar(curtoArquivo(nome) + ": versao " + String.join("/", analise.versoes()),
+                        "O nome de " + nome + " indica " + analise.versoes() + " e o mod "
+                                + faixaDeclarada.map(f -> "declara " + f).orElse("nao declara a versao do Minecraft") + ". Pode ser a versao errada do mod.");
                 avisos++;
             }
         }
@@ -163,6 +169,9 @@ public final class VerificadorMods {
                 if (alvo != null && !dep.getVersionRange().containsVersion(alvo.getVersion())) {
                     Config.LOGGER.warn("[Dependencia] {} pede {} {}, mas a versao instalada e {}. A integracao entre os dois pode falhar.",
                             mod.getModId(), dep.getModId(), dep.getVersionRange(), alvo.getVersion());
+                    Avisos.adicionar(mod.getModId() + " pede " + dep.getModId() + " " + dep.getVersionRange(),
+                            mod.getModId() + " pede " + dep.getModId() + " " + dep.getVersionRange() + ", mas a versao instalada e " + alvo.getVersion()
+                                    + ". A integracao entre os dois pode falhar. Atualize um dos dois.");
                     avisos++;
                 }
             }
@@ -178,13 +187,22 @@ public final class VerificadorMods {
             Config.LOGGER.warn("[Conflito] End Enchanting Table junto com {}: os dois mexem em como o nivel de encantamento e guardado, "
                             + "e o End Enchanting Table pode derrubar o jogo ao abrir a mesa. Remova um deles.",
                     Config.modInstalado("apotheosis") ? (Config.modInstalado("toolleveling") ? "Apotheosis e Tool Leveling+" : "Apotheosis") : "Tool Leveling+");
+            Avisos.adicionar("End Enchanting Table + Apotheosis/Tool Leveling+",
+                    "Os dois mexem em como o nivel de encantamento e guardado, e o End Enchanting Table pode derrubar o jogo ao abrir a mesa. Remova um deles.");
             avisos++;
         }
         if (Config.modInstalado("rechiseledcreate") && !Config.modInstalado("rechiseled")) {
             Config.LOGGER.warn("[Dependencia] Rechiseled: Create esta instalado sem o Rechiseled. Instale o Rechiseled ou remova o addon.");
+            Avisos.adicionar("Rechiseled: Create sem o Rechiseled", "Instale o Rechiseled ou remova o addon Rechiseled: Create.");
             avisos++;
         }
         return avisos;
+    }
+
+    /** Nome do arquivo encurtado para caber numa linha do chat. */
+    private static String curtoArquivo(String nome) {
+        String semJar = nome.endsWith(".jar") ? nome.substring(0, nome.length() - 4) : nome;
+        return semJar.length() > 28 ? semJar.substring(0, 27) + "…" : semJar;
     }
 
     private static boolean arquivoInstalado(String prefixo) {

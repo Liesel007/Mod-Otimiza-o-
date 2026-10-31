@@ -31,6 +31,8 @@ public final class Config {
 
     private static final Map<Modulo, Boolean> ATIVOS = new EnumMap<>(Modulo.class);
     private static final Map<Modulo, String> MOTIVOS = new EnumMap<>(Modulo.class);
+    private static final Map<Modulo, String> MOTIVOS_CURTOS = new EnumMap<>(Modulo.class);
+    private static final Map<Modulo, String> VALORES = new EnumMap<>(Modulo.class);
     private static int fpsSemFoco = 15;
     private static int fpsMinimizado = 1;
     private static int lagLimiteMs = 2000;
@@ -153,32 +155,40 @@ public final class Config {
 
     private static void decidir(Modulo modulo, String valor) {
         Optional<String> conflito = modulo.modsConflitantes.stream().filter(Config::modInstalado).findFirst();
+        VALORES.put(modulo, valor);
         boolean ativo;
         String motivo;
+        String curto;
         switch (valor) {
             case "off", "false", "desligado" -> {
                 ativo = false;
                 motivo = "desligado na config";
+                curto = "desligado na config";
             }
             case "on", "true", "ligado" -> {
                 ativo = true;
                 motivo = conflito.map(id -> "forcado na config (atencao: " + id + " tambem esta instalado)").orElse("ligado na config");
+                curto = conflito.map(id -> "forçado (" + nomeDoMod(id) + " também instalado)").orElse("ligado na config");
             }
             default -> {
                 ativo = conflito.isEmpty();
                 motivo = conflito.map(id -> "desligado automaticamente: " + id + " ja faz isso").orElse("ligado (auto)");
+                curto = conflito.map(id -> "desligado: " + nomeDoMod(id) + " já faz isso").orElse("ligado (auto)");
             }
         }
         if (modulo == Modulo.CORRECAO_FASTASYNCWORLDSAVE && ativo && !modInstalado("fastasyncworldsave")) {
             ativo = false;
             motivo = "nao necessario: fastasyncworldsave nao esta instalado";
+            curto = "não necessário (sem o Fast Async World Save)";
         }
         if (modulo == Modulo.CORRECAO_INFINITY_CHEST && ativo && !modInstalado("avaritia")) {
             ativo = false;
             motivo = "nao necessario: avaritia (Re-Avaritia) nao esta instalado";
+            curto = "não necessário (sem o Re-Avaritia)";
         }
         ATIVOS.put(modulo, ativo);
         MOTIVOS.put(modulo, motivo);
+        MOTIVOS_CURTOS.put(modulo, curto);
     }
 
     public static boolean ativo(Modulo modulo) {
@@ -189,6 +199,36 @@ public final class Config {
     public static String motivo(Modulo modulo) {
         carregar();
         return MOTIVOS.getOrDefault(modulo, "");
+    }
+
+    /** Motivo curto para o /hl status ("desligado: Icterine já faz isso"). */
+    public static String motivoCurto(Modulo modulo) {
+        carregar();
+        return MOTIVOS_CURTOS.getOrDefault(modulo, "");
+    }
+
+    /** Valor escrito na config (auto, on, off). */
+    public static String valor(Modulo modulo) {
+        carregar();
+        return VALORES.getOrDefault(modulo, "auto");
+    }
+
+    /** "nao necessario": desligado porque o mod que ele corrige nao esta instalado. */
+    public static boolean naoNecessario(Modulo modulo) {
+        return MOTIVOS.getOrDefault(modulo, "").startsWith("nao necessario");
+    }
+
+    /** Nome de exibicao de um mod pela lista de mods (cai no id se nao achar). */
+    public static String nomeDoMod(String modId) {
+        LoadingModList lista = LoadingModList.get();
+        if (lista != null) {
+            for (net.minecraftforge.fml.loading.moddiscovery.ModInfo mod : lista.getMods()) {
+                if (mod.getModId().equals(modId)) {
+                    return mod.getDisplayName();
+                }
+            }
+        }
+        return modId;
     }
 
     public static int fpsSemFoco() {

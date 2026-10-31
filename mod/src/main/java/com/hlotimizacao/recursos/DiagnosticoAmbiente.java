@@ -14,6 +14,11 @@ public final class DiagnosticoAmbiente {
     private static final int JAVA17_MINIMO = 12;
     private static final long ABRIR_ARQUIVO_LENTO_MS = 500;
     private static final AtomicInteger ARQUIVOS_LENTOS = new AtomicInteger();
+    public static final String FLAGS_G1 = "O Java 17 ja usa o G1, mas para modpacks grandes costuma ajudar: -XX:+UseG1GC -XX:MaxGCPauseMillis=130 "
+            + "-XX:+UnlockExperimentalVMOptions -XX:G1NewSizePercent=20 -XX:G1ReservePercent=20 -XX:G1HeapRegionSize=32M";
+    public static final String DICA_ANTIVIRUS = "Isso costuma ser o antivirus examinando cada arquivo do save. Adicione a pasta da instancia "
+            + "as exclusoes do Windows Defender (ou do antivirus que voce usa).";
+    private static volatile boolean ajusteGc = true;
     private static volatile boolean avisouAntivirus;
 
     /** Correcoes conhecidas: trecho do nome da config do mixin, trecho do motivo, explicacao. */
@@ -46,6 +51,10 @@ public final class DiagnosticoAmbiente {
                     .orElse("A parte do mod que depende desse mixin nao esta funcionando. Normalmente outro mod alterou o mesmo codigo antes.");
             Config.LOGGER.warn("[Mixin] {} ({}) falhou ao aplicar em {}. {}\n    Motivo: {}",
                     falha.mixin(), falha.config(), falha.alvo(), explicacao, falha.motivo());
+            String config = falha.config().replace(".mixins.json", "").replace(".json", "");
+            Avisos.adicionar("Mixin de " + (config.length() > 30 ? config.substring(0, 29) + "…" : config) + " falhou",
+                    falha.mixin() + " falhou ao aplicar em " + falha.alvo() + ". " + explicacao + "\nMotivo: "
+                            + (falha.motivo().length() > 300 ? falha.motivo().substring(0, 300) + "…" : falha.motivo()));
             avisos++;
         }
         return avisos;
@@ -73,12 +82,17 @@ public final class DiagnosticoAmbiente {
         if (xms > 0 && xms < xmx / 4) {
             Config.LOGGER.info("[JVM] -Xms ({} MB) e bem menor que -Xmx ({} MB): a JVM vai aumentando a memoria aos poucos durante o jogo, "
                     + "com pausas de coleta de lixo maiores no comeco. Sugestao: -Xms igual a metade (ou ao total) do -Xmx.", xms >> 20, xmx >> 20);
+            Avisos.adicionar("JVM: -Xms muito menor que -Xmx",
+                    "-Xms " + (xms >> 20) + " MB e -Xmx " + (xmx >> 20) + " MB: a JVM aumenta a memoria aos poucos, com pausas maiores no comeco. "
+                            + "Sugestao: -Xms igual a metade (ou ao total) do -Xmx.");
             avisos++;
         }
+        DiagnosticoAmbiente.ajusteGc = ajusteGc;
         if (!ajusteGc) {
             Config.LOGGER.info("[JVM] Nenhuma opcao de coleta de lixo (GC) nos argumentos. O Java 17 ja usa o G1, mas para modpacks grandes "
                     + "costuma ajudar: -XX:+UseG1GC -XX:MaxGCPauseMillis=130 -XX:+UnlockExperimentalVMOptions -XX:G1NewSizePercent=20 "
                     + "-XX:G1ReservePercent=20 -XX:G1HeapRegionSize=32M");
+            Avisos.adicionar("JVM: sem opcoes de coleta de lixo", FLAGS_G1);
             avisos++;
         }
         return avisos;
@@ -110,6 +124,8 @@ public final class DiagnosticoAmbiente {
         if (versao.feature() == 17 && versao.update() < JAVA17_MINIMO) {
             Config.LOGGER.warn("[Java] Java {} e antigo (de antes de 2024). Atualize para o Java 17 mais recente (por exemplo, Eclipse Temurin 17 ou "
                     + "Microsoft OpenJDK 17): ha correcoes de desempenho e de travamentos do proprio Java.", versao);
+            Avisos.adicionar("Java " + versao.feature() + "." + versao.interim() + "." + versao.update() + " antigo",
+                    "Atualize para o Java 17 mais recente (Eclipse Temurin 17 ou Microsoft OpenJDK 17): ha correcoes de desempenho e de travamentos do proprio Java.");
             return 1;
         }
         return 0;
@@ -127,6 +143,10 @@ public final class DiagnosticoAmbiente {
             Config.LOGGER.warn("[Antivirus?] Abrir arquivos para gravar levou mais de {} ms {} vezes (ultimo: {} ms). Isso costuma ser o antivirus "
                     + "examinando cada arquivo do save. Adicione a pasta da instancia as exclusoes do Windows Defender.", ABRIR_ARQUIVO_LENTO_MS, n, ms);
         }
+    }
+
+    public static boolean temAjusteGc() {
+        return ajusteGc;
     }
 
     public static int arquivosLentos() {

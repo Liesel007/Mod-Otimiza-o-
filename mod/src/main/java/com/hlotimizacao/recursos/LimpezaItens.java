@@ -214,6 +214,30 @@ public final class LimpezaItens {
         return true;
     }
 
+    public static boolean limpandoAgora() {
+        return limpando;
+    }
+
+    /** Segundos ate a proxima limpeza (-1 se nao agendada). */
+    public static long segundosParaProxima(MinecraftServer server) {
+        return proximaLimpezaTick < 0 ? -1 : Math.max(0, proximaLimpezaTick - server.getTickCount()) / 20;
+    }
+
+    /** {pilhas, itens} soltos no chao agora. */
+    public static long[] contarNoChao(MinecraftServer server) {
+        long pilhas = 0;
+        long itens = 0;
+        for (ServerLevel level : server.getAllLevels()) {
+            for (Entity e : level.getAllEntities()) {
+                if (e instanceof ItemEntity item) {
+                    pilhas++;
+                    itens += item.getItem().getCount();
+                }
+            }
+        }
+        return new long[]{pilhas, itens};
+    }
+
     public static List<String> status(MinecraftServer server) {
         List<String> linhas = new ArrayList<>();
         long faltam = Math.max(0, proximaLimpezaTick - server.getTickCount()) / 20;

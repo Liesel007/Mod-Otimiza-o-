@@ -20,6 +20,8 @@ import net.minecraftforge.forgespi.language.IModInfo;
 import net.minecraftforge.registries.ForgeRegistries;
 
 import java.util.ArrayList;
+import java.util.Deque;
+import java.util.ArrayDeque;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -351,15 +353,61 @@ public final class DiagnosticoLag {
         return modPorModulo;
     }
 
-    /** "pehkui 85% (virtuoel...ScaleData.getScale), avaritia 15% (...)", sobre todas as amostras. */
-    static String provavelCausa(List<StackTraceElement[]> amostras) {
-        if (amostras.isEmpty()) {
-            return "sem amostras (travamento curto demais)";
+    public static final String SEM_MOD = "Minecraft/Forge (nenhum mod no topo da pilha)";
+
+    /** Um travamento registrado, para o /hl status lag. */
+    public record Registro(java.time.LocalTime hora, long duracaoMs, String tipo, String mod, String frame) {
+    }
+
+    private static final int MAX_HISTORICO = 20;
+    private static final Deque<Registro> HISTORICO = new ArrayDeque<>();
+    /** Tempo de travamento atribuido a cada mod na sessao (duracao x fracao das amostras). */
+    private static final Map<String, Long> MS_POR_MOD = new ConcurrentHashMap<>();
+    private static final Map<String, String> FRAME_POR_MOD = new ConcurrentHashMap<>();
+    private static volatile long msTotal;
+    private static volatile Registro pior;
+
+    public static synchronized List<Registro> historico() {
+        return new ArrayList<>(HISTORICO);
+    }
+
+    public static Map<String, Long> msPorMod() {
+        return Map.copyOf(MS_POR_MOD);
+    }
+
+    public static String framePorMod(String mod) {
+        return FRAME_POR_MOD.getOrDefault(mod, "?");
+    }
+
+    public static long msTotal() {
+        return msTotal;
+    }
+
+    public static Registro pior() {
+        return pior;
+    }
+
+    private static synchronized void guardar(Registro registro, Map<String, Integer> contagem, int amostras) {
+        HISTORICO.addFirst(registro);
+        while (HISTORICO.size() > MAX_HISTORICO) {
+            HISTORICO.removeLast();
         }
+        msTotal += registro.duracaoMs();
+        if (pior == null || registro.duracaoMs() > pior.duracaoMs()) {
+            pior = registro;
+        }
+        if (amostras == 0) {
+            MS_POR_MOD.merge(SEM_MOD, registro.duracaoMs(), Long::sum);
+            return;
+        }
+        contagem.forEach((mod, n) -> MS_POR_MOD.merge(mod, registro.duracaoMs() * n / amostras, Long::sum));
+    }
+
+    /** Conta as amostras por mod dono do primeiro frame que nao e do Minecraft/Forge/Java; exemplo = um frame de cada mod. */
+    static Map<String, Integer> contarPorMod(List<StackTraceElement[]> amostras, Map<String, String> exemplo) {
         Map<String, Integer> contagem = new LinkedHashMap<>();
-        Map<String, String> exemplo = new HashMap<>();
         for (StackTraceElement[] pilha : amostras) {
-            String mod = "Minecraft/Forge (nenhum mod no topo da pilha)";
+            String mod = SEM_MOD;
             String frameExemplo = pilha.length > 0 ? pilha[0].getClassName() + "." + pilha[0].getMethodName() : "?";
             for (StackTraceElement frame : pilha) {
                 String dono = modDoFrame(frame);
@@ -371,6 +419,19 @@ public final class DiagnosticoLag {
             }
             contagem.merge(mod, 1, Integer::sum);
             exemplo.putIfAbsent(mod, frameExemplo);
+        }
+        return contagem;
+    }
+
+    /** "pehkui 85% (virtuoel...ScaleData.getScale), avaritia 15% (...)", sobre todas as amostras. */
+    static String provavelCausa(List<StackTraceElement[]> amostras) {
+        if (amostras.isEmpty()) {
+            return "sem amostras (travamento curto demais)";
+        }
+        Map<String, String> exemplo = new HashMap<>();
+        Map<String, Integer> contagem = contarPorMod(amostras, exemplo);
+        if (contagem.isEmpty()) {
+            return "?";
         }
         int total = amostras.size();
         return contagem.entrySet().stream()
@@ -455,6 +516,13 @@ public final class DiagnosticoLag {
             sb.append(String.format("[diagnostico_lag] Tick lento: %d ms (dentro do tick%s).%n", duracao, marcaSalvamento(t)));
         }
         sb.append("  Provavel causa: ").append(provavelCausa(amostras)).append('\n');
+        Map<String, String> exemplos = new HashMap<>();
+        Map<String, Integer> porMod = contarPorMod(amostras, exemplos);
+        exemplos.forEach(FRAME_POR_MOD::putIfAbsent);
+        String principal = porMod.entrySet().stream().max(Map.Entry.comparingByValue()).map(Map.Entry::getKey).orElse(SEM_MOD);
+        guardar(new Registro(java.time.LocalTime.now(), duracao,
+                        t.salvando ? "salvamento" : t.onde.texto, principal, exemplos.getOrDefault(principal, "?")),
+                porMod, amostras.size());
         String tipo = tipo(amostras);
         if (tipo != null) {
             sb.append("  Tipo: ").append(tipo).append('\n');

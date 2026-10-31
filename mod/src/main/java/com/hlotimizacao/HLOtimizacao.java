@@ -4,6 +4,7 @@ import com.hlotimizacao.config.Config;
 import com.hlotimizacao.config.Modulo;
 import com.hlotimizacao.recursos.GravadorAssincrono;
 import com.hlotimizacao.recursos.DiagnosticoLag;
+import com.hlotimizacao.recursos.Desempenho;
 import com.hlotimizacao.recursos.Estatisticas;
 import com.hlotimizacao.recursos.LimpezaItens;
 import com.hlotimizacao.recursos.RelatorioConflitos;
@@ -36,6 +37,10 @@ public class HLOtimizacao {
         MinecraftForge.EVENT_BUS.addListener(this::aoPararServidor);
         // Prioridade mais baixa: registra depois dos outros mods, para saber se /hl ja esta em uso.
         MinecraftForge.EVENT_BUS.addListener(net.minecraftforge.eventbus.api.EventPriority.LOWEST, Comandos::registrar);
+        MinecraftForge.EVENT_BUS.addListener(Desempenho::aoTick);
+        MinecraftForge.EVENT_BUS.addListener(Desempenho::aoSalvar);
+        MinecraftForge.EVENT_BUS.addListener((ServerStartedEvent e) -> Desempenho.aoIniciarServidor());
+        Desempenho.iniciarGc();
         if (Config.ativo(Modulo.LIMPEZA_ITENS)) {
             MinecraftForge.EVENT_BUS.addListener(LimpezaItens::aoTick);
             MinecraftForge.EVENT_BUS.addListener(LimpezaItens::aoMorrer);
