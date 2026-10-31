@@ -40,6 +40,9 @@ public class HLOtimizacao {
         com.hlotimizacao.rede.RedeHL.registrar();
         MinecraftForge.EVENT_BUS.addListener(com.hlotimizacao.rede.RedeHL::aoTick);
         MinecraftForge.EVENT_BUS.addListener(Desempenho::aoTick);
+        if (Config.ativo(Modulo.LIMITE_ENXAME)) {
+            MinecraftForge.EVENT_BUS.addListener(com.hlotimizacao.recursos.LimiteEnxame::aoSpawnar);
+        }
         if (Config.ativo(Modulo.RELATORIO_CONFLITOS)) {
             MinecraftForge.EVENT_BUS.addListener(com.hlotimizacao.recursos.DimensoesPesadas::aoTick);
         }

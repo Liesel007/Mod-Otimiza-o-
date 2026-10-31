@@ -64,6 +64,7 @@ public final class Comandos {
                     responder(ctx, "Configuracao relida (limites, listas e intervalos). Ligar ou desligar modulos exige reiniciar o jogo.");
                     return 1;
                 }));
+        raiz.then(Commands.literal("entidades").requires(Comandos::podeAdministrar).executes(Comandos::entidades));
         if (Config.ativo(Modulo.LIMPEZA_ITENS)) {
             raiz.then(Commands.literal("limpar").requires(s -> s.hasPermission(2))
                     .executes(ctx -> {
@@ -82,6 +83,53 @@ public final class Comandos {
                     })));
         }
         return raiz;
+    }
+
+    /** Operador (nivel 2) ou o dono do mundo no singleplayer. */
+    private static boolean podeAdministrar(CommandSourceStack fonte) {
+        return fonte.hasPermission(2) || (fonte.getEntity() instanceof net.minecraft.server.level.ServerPlayer jogador
+                && fonte.getServer().isSingleplayerOwner(jogador.getGameProfile()));
+    }
+
+    /** /hl entidades: as 10 chunks com mais entidades, com coordenadas e o tipo mais comum. */
+    private static int entidades(CommandContext<CommandSourceStack> ctx) {
+        record Chave(net.minecraft.server.level.ServerLevel level, long chunk) {
+        }
+        java.util.Map<Chave, java.util.Map<String, Integer>> porChunk = new java.util.HashMap<>();
+        int total = 0;
+        for (net.minecraft.server.level.ServerLevel level : ctx.getSource().getServer().getAllLevels()) {
+            for (net.minecraft.world.entity.Entity e : level.getAllEntities()) {
+                total++;
+                net.minecraft.resources.ResourceLocation id = net.minecraftforge.registries.ForgeRegistries.ENTITY_TYPES.getKey(e.getType());
+                porChunk.computeIfAbsent(new Chave(level, e.chunkPosition().toLong()), k -> new java.util.HashMap<>())
+                        .merge(id == null ? "?" : id.toString(), 1, Integer::sum);
+            }
+        }
+        boolean console = !ctx.getSource().isPlayer();
+        responder(ctx, (console ? "==========" : "━━━━━━━━━━") + " Entidades (" + PainelStatus.num(total) + " no total) " + (console ? "==========" : "━━━━━━━━━━"));
+        java.util.List<java.util.Map.Entry<Chave, java.util.Map<String, Integer>>> lista = new java.util.ArrayList<>(porChunk.entrySet());
+        lista.sort((a, b) -> Integer.compare(b.getValue().values().stream().mapToInt(Integer::intValue).sum(),
+                a.getValue().values().stream().mapToInt(Integer::intValue).sum()));
+        for (int i = 0; i < Math.min(10, lista.size()); i++) {
+            var e = lista.get(i);
+            net.minecraft.world.level.ChunkPos chunk = new net.minecraft.world.level.ChunkPos(e.getKey().chunk());
+            int soma = e.getValue().values().stream().mapToInt(Integer::intValue).sum();
+            var comum = e.getValue().entrySet().stream().max(java.util.Map.Entry.comparingByValue()).get();
+            String dim = e.getKey().level().dimension().location().toString();
+            int x = chunk.getMiddleBlockX();
+            int z = chunk.getMiddleBlockZ();
+            String tipo = comum.getKey().startsWith("minecraft:") ? comum.getKey().substring(10) : comum.getKey();
+            String texto = String.format(PainelStatus.PT, " %d. %s (%d, %d): %s · %s x%d", i + 1,
+                    PainelStatus.cortar(dim.startsWith("minecraft:") ? dim.substring(10) : dim, 14), x, z, PainelStatus.num(soma),
+                    PainelStatus.cortar(tipo, 18), comum.getValue());
+            String tp = "/execute in " + dim + " run tp @s " + x + " ~ " + z;
+            Component linha = Component.literal(console ? PainelStatus.paraConsole(texto) : texto).withStyle(st -> st
+                    .withClickEvent(new net.minecraft.network.chat.ClickEvent(net.minecraft.network.chat.ClickEvent.Action.SUGGEST_COMMAND, tp))
+                    .withHoverEvent(new net.minecraft.network.chat.HoverEvent(net.minecraft.network.chat.HoverEvent.Action.SHOW_TEXT,
+                            Component.literal(dim + " chunk " + chunk.x + ", " + chunk.z + "\n" + e.getValue() + "\nClique: " + tp))));
+            ctx.getSource().sendSuccess(() -> linha, false);
+        }
+        return 1;
     }
 
     private static void responder(CommandContext<CommandSourceStack> ctx, String texto) {

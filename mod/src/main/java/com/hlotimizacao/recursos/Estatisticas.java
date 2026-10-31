@@ -57,6 +57,15 @@ public final class Estatisticas {
         if (Config.ativo(Modulo.LIMPEZA_ITENS)) {
             linhas.add(String.format("limpeza_itens: %d limpeza(s), %d item(ns) removido(s)", LimpezaItens.LIMPEZAS.get(), LimpezaItens.ITENS_REMOVIDOS.get()));
         }
+        if (Config.ativo(Modulo.ALCANCE_ATIVACAO)) {
+            long pulados = AlcanceAtivacao.TICKS_PULADOS.get();
+            long feitos = AlcanceAtivacao.TICKS_PROCESSADOS_LONGE.get();
+            linhas.add(String.format("alcance_ativacao: %d tick(s) de entidade pulado(s) (%d processado(s) longe dos jogadores)", pulados, feitos));
+        }
+        if (Config.ativo(Modulo.LIMITE_ENXAME)) {
+            linhas.add(String.format("limite_enxame: %d spawn(s) bloqueado(s)%s", LimiteEnxame.BLOQUEADOS.get(),
+                    LimiteEnxame.BLOQUEADOS.get() == 0 ? "" : " (" + LimiteEnxame.porTipo() + ")"));
+        }
         if (DiagnosticoAmbiente.arquivosLentos() > 0) {
             linhas.add(String.format("arquivos que demoraram mais de 500 ms para abrir ao gravar: %d (antivirus?)", DiagnosticoAmbiente.arquivosLentos()));
         }

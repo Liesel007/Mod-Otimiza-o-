@@ -37,7 +37,14 @@ public final class GravadorAssincrono {
         // Se o processo fechar sem ServerStoppedEvent (crash, System.exit), a thread daemon morreria
         // com gravacoes na fila. O shutdown hook espera um pouco por elas.
         // (Um "matar processo" forcado pelo sistema nao roda shutdown hooks; nada a fazer nesse caso.)
-        Runtime.getRuntime().addShutdownHook(new Thread(GravadorAssincrono::aoDesligar, "HL Otimizacao - gravacoes ao desligar"));
+        // Se a classe so for carregada durante um desligamento (ex.: crash, e o ultimo save e o primeiro a
+        // usar o gravador), o Java recusa novos hooks com IllegalStateException; sem o try, essa excecao
+        // derrubaria o proprio salvamento.
+        try {
+            Runtime.getRuntime().addShutdownHook(new Thread(GravadorAssincrono::aoDesligar, "HL Otimizacao - gravacoes ao desligar"));
+        } catch (IllegalStateException desligando) {
+            // o processo ja esta fechando: o salvamento em andamento espera as gravacoes (esperarPendentes)
+        }
     }
 
     private GravadorAssincrono() {

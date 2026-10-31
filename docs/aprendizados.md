@@ -144,3 +144,12 @@ Cupboard (log de carga síncrona de chunk), Connectivity (estatísticas de rede)
 - **`limpeza_itens` (ideia dos plugins ClearLag):** a remoção é espalhada em lotes por tick (como o Smooth
   Chunk faz com os salvamentos) e usa `discard()`, sem som nem partículas. Os drops da morte de jogadores
   recebem uma marca (`LivingDropsEvent`, NBT persistente da entidade) para nunca serem apagados.
+
+## 7. Técnicas usadas nos módulos da 0.2.1
+
+- **`alcance_ativacao` (ServerCore, NoTick, Paper):** um `@Inject` no começo do `ServerLevel.tickNonPassenger`
+  decide se a entidade passa pelo tick. A decisão precisa ser barata (roda para cada entidade, todo tick): primeiro as
+  exceções por classe e por campo, depois a distância até os jogadores, e as exceções por tipo ficam num cache. O tick
+  "da vez" de cada entidade é espalhado pelo id (`(tempo + id) % N`), para não processar todas juntas no mesmo tick.
+- **`limite_enxame`:** o `MobSpawnEvent.FinalizeSpawn` do Forge diz o tipo de spawn (natural, spawner, ovo, comando...)
+  e permite cancelar. A contagem usa a busca de entidades por seção do próprio Minecraft numa caixa de 3x3 chunks.

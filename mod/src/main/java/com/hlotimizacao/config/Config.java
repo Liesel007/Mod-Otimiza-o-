@@ -53,6 +53,17 @@ public final class Config {
         EDITAVEIS.put("diagnostico_lag.tolerancia_inicio_s", "Segundos sem registrar depois de abrir o mundo");
         EDITAVEIS.put("diagnostico_lag.ignorar_mixins", "Mixins que so repassam a chamada (mod:metodo, separados por virgula)");
         EDITAVEIS.put("salvamento_assincrono.serializar_classes", "Classes com save(File) proprio gravadas em outra thread (cuidado)");
+        EDITAVEIS.put("alcance_ativacao.horizontal", "Distancia horizontal (blocos) de um jogador ate a qual a entidade e processada todo tick");
+        EDITAVEIS.put("alcance_ativacao.vertical", "Distancia vertical (blocos) de um jogador ate a qual a entidade e processada todo tick");
+        EDITAVEIS.put("alcance_ativacao.intervalo", "Entidades longe sao processadas 1 vez a cada N ticks (2 a 200)");
+        EDITAVEIS.put("alcance_ativacao.proteger_itens", "Itens e orbes de XP sempre processados (fazendas com coletores) (true/false)");
+        EDITAVEIS.put("alcance_ativacao.proteger_aldeoes", "Aldeoes sempre processados (fazendas de ferro) (true/false)");
+        EDITAVEIS.put("alcance_ativacao.proteger_areas_sem_jogador", "Nao mexer em areas carregadas por chunk loader, sem jogador na distancia de simulacao (true/false)");
+        EDITAVEIS.put("alcance_ativacao.excecoes_entidades", "Entidades sempre processadas (ids separados por virgula, ex.: chefes de mods)");
+        EDITAVEIS.put("alcance_ativacao.excecoes_mods", "Mods cujas entidades sao sempre processadas (ids de mod)");
+        EDITAVEIS.put("alcance_ativacao.dimensoes_ignoradas", "Dimensoes onde o alcance de ativacao nao age");
+        EDITAVEIS.put("limite_enxame.lista", "Limite por tipo na regiao (tipo=numero, separados por virgula)");
+        EDITAVEIS.put("limite_enxame.raio_chunks", "Raio da regiao em chunks (1 = o chunk e os 8 vizinhos)");
     }
     private static int fpsSemFoco = 15;
     private static int fpsMinimizado = 1;
@@ -60,6 +71,21 @@ public final class Config {
     private static int lagIntervaloS = 30;
     private static int lagToleranciaS = 30;
     private static Set<String> lagIgnorarMixins = Set.of("chrono:scalePlayerGameplayTick");
+    private static int ativacaoHorizontal = 48;
+    private static int ativacaoVertical = 48;
+    private static int ativacaoIntervalo = 20;
+    private static boolean ativacaoProtegerItens = true;
+    private static boolean ativacaoProtegerAldeoes = true;
+    private static boolean ativacaoProtegerSemJogador = true;
+    private static Set<String> ativacaoExcecoesEntidades = Set.of();
+    private static Set<String> ativacaoExcecoesMods = Set.of();
+    private static Set<String> ativacaoDimensoesIgnoradas = Set.of();
+    private static Map<String, Integer> enxameLimites = Map.of();
+    private static int enxameRaioChunks = 1;
+    /** Muda a cada leitura dos valores, para quem guarda cache (ex.: excecoes por tipo de entidade). */
+    private static volatile int versao;
+    private static final String ENXAME_PADRAO = "chaospersists:ant=8,chaospersists:rainbow_ant=4,chaospersists:unstable_ant=4,chaospersists:butterfly=6";
+    private static final String EXCECOES_PADRAO = "minecraft:ender_dragon,minecraft:wither,minecraft:elder_guardian,minecraft:warden";
     private static Set<String> salvamentoSerializarClasses = Set.of();
     private static int limpezaIntervaloMin = 10;
     private static Set<Integer> limpezaAvisosS = Set.of(60, 30, 10, 5);
@@ -137,6 +163,29 @@ public final class Config {
         lagToleranciaS = lerInt(props, "diagnostico_lag.tolerancia_inicio_s", 30, 0, 3600);
         salvamentoSerializarClasses = lista(props, "salvamento_assincrono.serializar_classes", "");
         lagIgnorarMixins = lista(props, "diagnostico_lag.ignorar_mixins", "chrono:scalePlayerGameplayTick");
+        ativacaoHorizontal = lerInt(props, "alcance_ativacao.horizontal", 48, 8, 512);
+        ativacaoVertical = lerInt(props, "alcance_ativacao.vertical", 48, 8, 512);
+        ativacaoIntervalo = lerInt(props, "alcance_ativacao.intervalo", 20, 2, 200);
+        ativacaoProtegerItens = Boolean.parseBoolean(props.getProperty("alcance_ativacao.proteger_itens", "true").trim());
+        ativacaoProtegerAldeoes = Boolean.parseBoolean(props.getProperty("alcance_ativacao.proteger_aldeoes", "true").trim());
+        ativacaoProtegerSemJogador = Boolean.parseBoolean(props.getProperty("alcance_ativacao.proteger_areas_sem_jogador", "true").trim());
+        ativacaoExcecoesEntidades = lista(props, "alcance_ativacao.excecoes_entidades", EXCECOES_PADRAO);
+        ativacaoExcecoesMods = lista(props, "alcance_ativacao.excecoes_mods", "");
+        ativacaoDimensoesIgnoradas = lista(props, "alcance_ativacao.dimensoes_ignoradas", "");
+        Map<String, Integer> limites = new java.util.HashMap<>();
+        for (String par : lista(props, "limite_enxame.lista", ENXAME_PADRAO)) {
+            int igual = par.lastIndexOf('=');
+            if (igual > 0) {
+                try {
+                    limites.put(par.substring(0, igual).trim(), Math.max(0, Integer.parseInt(par.substring(igual + 1).trim())));
+                } catch (NumberFormatException ignorado) {
+                    // par invalido: ignora
+                }
+            }
+        }
+        enxameLimites = Map.copyOf(limites);
+        enxameRaioChunks = lerInt(props, "limite_enxame.raio_chunks", 1, 0, 4);
+        versao++;
         limpezaIntervaloMin = lerInt(props, "limpeza_itens.intervalo_min", 10, 1, 1440);
         Set<Integer> avisos = new java.util.TreeSet<>();
         for (String aviso : lista(props, "limpeza_itens.avisos_s", "60,30,10,5")) {
@@ -161,6 +210,17 @@ public final class Config {
                 {"diagnostico_lag.tolerancia_inicio_s", Integer.toString(lagToleranciaS)},
                 {"salvamento_assincrono.serializar_classes", String.join(",", salvamentoSerializarClasses)},
                 {"diagnostico_lag.ignorar_mixins", "chrono:scalePlayerGameplayTick"},
+                {"alcance_ativacao.horizontal", "48"},
+                {"alcance_ativacao.vertical", "48"},
+                {"alcance_ativacao.intervalo", "20"},
+                {"alcance_ativacao.proteger_itens", "true"},
+                {"alcance_ativacao.proteger_aldeoes", "true"},
+                {"alcance_ativacao.proteger_areas_sem_jogador", "true"},
+                {"alcance_ativacao.excecoes_entidades", EXCECOES_PADRAO},
+                {"alcance_ativacao.excecoes_mods", ""},
+                {"alcance_ativacao.dimensoes_ignoradas", ""},
+                {"limite_enxame.lista", ENXAME_PADRAO},
+                {"limite_enxame.raio_chunks", "1"},
                 {"limpeza_itens.intervalo_min", Integer.toString(limpezaIntervaloMin)},
                 {"limpeza_itens.avisos_s", "60,30,10,5"},
                 {"limpeza_itens.idade_minima_s", Integer.toString(limpezaIdadeMinimaS)},
@@ -331,6 +391,54 @@ public final class Config {
         return lagIntervaloS;
     }
 
+    public static int versao() {
+        return versao;
+    }
+
+    public static int ativacaoHorizontal() {
+        return ativacaoHorizontal;
+    }
+
+    public static int ativacaoVertical() {
+        return ativacaoVertical;
+    }
+
+    public static int ativacaoIntervalo() {
+        return ativacaoIntervalo;
+    }
+
+    public static boolean ativacaoProtegerItens() {
+        return ativacaoProtegerItens;
+    }
+
+    public static boolean ativacaoProtegerAldeoes() {
+        return ativacaoProtegerAldeoes;
+    }
+
+    public static boolean ativacaoProtegerSemJogador() {
+        return ativacaoProtegerSemJogador;
+    }
+
+    public static Set<String> ativacaoExcecoesEntidades() {
+        return ativacaoExcecoesEntidades;
+    }
+
+    public static Set<String> ativacaoExcecoesMods() {
+        return ativacaoExcecoesMods;
+    }
+
+    public static Set<String> ativacaoDimensoesIgnoradas() {
+        return ativacaoDimensoesIgnoradas;
+    }
+
+    public static Map<String, Integer> enxameLimites() {
+        return enxameLimites;
+    }
+
+    public static int enxameRaioChunks() {
+        return enxameRaioChunks;
+    }
+
     public static Set<String> lagIgnorarMixins() {
         return lagIgnorarMixins;
     }
@@ -429,6 +537,17 @@ public final class Config {
         sb.append("# a ser serializadas com save(CompoundTag) e gravadas em outra thread, IGNORANDO o save(File) do mod.\n");
         sb.append("# So use se souber que o save(File) da classe apenas chama o do Minecraft (risco de perder dados se fizer mais).\n");
         sb.append("salvamento_assincrono.serializar_classes=").append(props.getProperty("salvamento_assincrono.serializar_classes")).append("\n\n");
+        sb.append("# alcance_ativacao: entidades a mais de 'horizontal' blocos (ou 'vertical') de todos os jogadores sao processadas\n");
+        sb.append("# so 1 vez a cada 'intervalo' ticks. Nunca: jogadores, projeteis, veiculos/passageiros, chefes, entidades com nome,\n");
+        sb.append("# domesticadas, em raid, machucadas ou com alvo, e (opcoes) itens, aldeoes e areas so carregadas por chunk loader.\n");
+        for (String chave : new String[]{"horizontal", "vertical", "intervalo", "proteger_itens", "proteger_aldeoes", "proteger_areas_sem_jogador",
+                "excecoes_entidades", "excecoes_mods", "dimensoes_ignoradas"}) {
+            sb.append("alcance_ativacao.").append(chave).append('=').append(props.getProperty("alcance_ativacao." + chave)).append('\n');
+        }
+        sb.append("\n# limite_enxame: spawn natural, de geracao de chunk e de spawner e cancelado quando ja ha 'numero' entidades daquele\n");
+        sb.append("# tipo no chunk e nos vizinhos ate raio_chunks. Nunca vale para ovo, comando ou balde, e nunca remove entidades.\n");
+        sb.append("limite_enxame.lista=").append(props.getProperty("limite_enxame.lista")).append('\n');
+        sb.append("limite_enxame.raio_chunks=").append(props.getProperty("limite_enxame.raio_chunks")).append("\n\n");
         sb.append("# limpeza_itens: a cada intervalo_min minutos apaga os itens soltos no chao, com avisos no chat antes (avisos_s).\n");
         sb.append("# Nunca apaga: itens com menos de idade_minima_s segundos no chao, drops da morte de jogadores, itens_protegidos,\n");
         sb.append("# ovos de spawn, shulker boxes, itens encantados/com nome/com conteudo (proteger_itens_com_nbt) e itens sobre\n");

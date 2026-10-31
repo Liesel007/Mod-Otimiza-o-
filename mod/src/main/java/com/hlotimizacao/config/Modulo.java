@@ -41,6 +41,14 @@ public enum Modulo {
     LIMPEZA_ITENS("Limpeza de itens", false, "limpeza_itens", null,
             "Apaga de tempos em tempos os itens soltos no chao, com avisos no chat antes e protecao para itens valiosos, recentes e de morte.",
             List.of("clearlag", "clearlagg", "itemclearer", "clear_lag")),
+    ALCANCE_ATIVACAO("Alcance de ativação", false, "alcance_ativacao", "mixin.ativacao",
+            "Entidades longe de todos os jogadores sao processadas so 1 vez a cada N ticks (como o ServerCore, o NoTick e o Paper), "
+                    + "com excecoes para jogadores, chefes, entidades com nome, domesticadas, itens, aldeoes e areas de chunk loader.",
+            List.of("servercore", "notick")),
+    LIMITE_ENXAME("Limite de enxame", false, "limite_enxame", null,
+            "Cancela o spawn natural/de spawner de um tipo de entidade quando ja ha muitas dele na regiao (por tipo, configuravel). "
+                    + "Nunca remove entidades nem limita ovo, comando ou balde.",
+            List.of()),
     RELATORIO_CONFLITOS("Relatório de conflitos", false, "relatorio_conflitos", null,
             "Mostra no log conflitos conhecidos entre mods de otimizacao instalados.",
             List.of());

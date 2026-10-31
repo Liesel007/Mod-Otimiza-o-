@@ -5,7 +5,7 @@ Mod de otimização feito a partir do estudo do código dos mods do modpack HL
 **código próprio** (sem copiar código dos outros mods, que têm licenças diferentes) e **corrige erros**
 encontrados neles.
 
-**Jar pronto:** [`releases/hlotimizacao-0.2.0.jar`](../releases/hlotimizacao-0.2.0.jar). Basta colocá-lo
+**Jar pronto:** [`releases/hlotimizacao-0.2.1.jar`](../releases/hlotimizacao-0.2.1.jar). Basta colocá-lo
 na pasta `mods` da instância.
 
 ## Como ele convive com os mods do pack
@@ -34,6 +34,8 @@ O log mostra, na inicialização, o estado de cada módulo e o motivo
 | `relatorio_conflitos` | (diagnóstico) | — | servidor e cliente |
 | `correcao_infinity_chest` | (correção) | só liga se o `avaritia` (Re-Avaritia) estiver instalado | servidor e cliente |
 | `limpeza_itens` | ClearLag | `clearlag`, `clearlagg`, `itemclearer`, `clear_lag` | servidor |
+| `alcance_ativacao` | ServerCore, NoTick, Paper | `servercore`, `notick` | servidor |
+| `limite_enxame` | mobcaps do ServerCore (por tipo) | — | servidor |
 | `tooltip_seguro` | (correção) | — | cliente |
 | `diagnostico_lag` | (diagnóstico) | — | servidor |
 
@@ -109,6 +111,7 @@ pausa o jogo, então os números continuam se mexendo. Capturas em 1366×768: [`
 | `/hl status desempenho` | todos | TPS, MSPT (mín/máx sem os ticks de salvamento), último salvamento, memória, pausas de GC, dimensões, Java |
 | `/hl status lag` | todos | travamentos da sessão: total, pior, mods mais culpados e os últimos 3 |
 | `/hl status avisos` | todos | todos os avisos do relatório de conflitos e os que aparecem durante o jogo, com a correção ao passar o mouse |
+| `/hl entidades` | operador ou dono do singleplayer | as 10 chunks com mais entidades, com coordenadas e o tipo mais comum (clique: sugere o /tp) |
 | `/hl recarregar` | operador | relê da config os limites, listas e intervalos (ligar/desligar módulo exige reiniciar) |
 | `/hl limpar` | operador | limpa os itens do chão daqui a 10 s (`limpeza_itens`) |
 | `/hl limpar cancelar` | operador | pula a próxima limpeza |
@@ -140,6 +143,52 @@ Teste de antes e depois com números: [`docs/benchmark.md`](../docs/benchmark.md
   e o funcionamento junto com o pack HL completo. Teste num mundo de cópia antes de usar no mundo principal.
 
 ## Histórico de versões
+
+### 0.2.1
+**Novo módulo `alcance_ativacao`** (desliga sozinho com ServerCore ou NoTick): entidades a mais de 48 blocos na
+horizontal ou na vertical de todos os jogadores são processadas só 1 vez a cada 20 ticks. O despawn continua
+(o vanilla o chama todo tick, fora do tick da entidade). Nunca são puladas: jogadores, projéteis, veículos e
+passageiros, dragão, wither, a lista `excecoes_entidades`, qualquer ser vivo com 200 ou mais de vida (chefes de
+mods), entidades com nome, domesticadas, em raid, machucadas agora ou com alvo e, por padrão, itens/orbes de XP,
+aldeões e entidades em áreas carregadas sem jogador na distância de simulação (chunk loaders: fazendas não ficam
+mais lentas). Tudo configurável, inclusive pela aba Config da tela.
+
+Nos ticks pulados a entidade não anda, não pensa e não envelhece (o `tickCount` avança, como no vanilla). Por isso
+filhotes crescem e animais procriam mais devagar longe dos jogadores, como no Paper/ServerCore.
+
+**Novo módulo `limite_enxame`:** cancela o spawn natural, de geração de chunk e de spawner de um tipo quando já há
+muitos dele no chunk e nos vizinhos (`limite_enxame.lista`, padrão: `chaospersists:ant=8`, `rainbow_ant=4`,
+`unstable_ant=4`, `butterfly=6`). Nunca remove entidades e nunca limita ovo, comando ou balde.
+
+**Novo comando `/hl entidades`** (tabela acima).
+
+**Correção:** se a primeira gravação do `salvamento_assincrono` acontecesse durante um desligamento forçado (ex.:
+crash), o registro do "shutdown hook" lançava `IllegalStateException` e atrapalhava esse último salvamento.
+Encontrado no teste de carga abaixo.
+
+**Teste de carga** (servidor dedicado; um jogador sem cliente colocado no mundo para manter os chunks e as
+entidades processados; vacas num anel de 64 a 150 blocos dele, dentro da distância de simulação 10, mais 500 perto;
+spawn natural e dano por aglomeração desligados; média e p95 do tempo de tick em 20 s):
+
+| Vacas carregadas | Vanilla (MSPT médio / p95 / TPS) | Com `alcance_ativacao` (MSPT médio / p95 / TPS) |
+|---|---|---|
+| 1.500 | 32 / 44 ms / 20,0 | 19 / 26 ms / 20,0 |
+| 5.500 | 116 / 151 ms / **8,6** | 30 / 39 ms / **20,0** |
+| 10.500 | 246 / 285 ms / **4,1** | 45 / 59 ms / **20,0** |
+| 20.500 | 590 / 677 ms / **1,7** | 88 / 109 ms / **11,3** |
+| 40.500 | não medido | 200 / 255 ms / 5,0 |
+
+- No vanilla, a primeira tentativa com 20 mil vacas terminou com o watchdog do Minecraft derrubando o servidor
+  (um tick de 60 s, logo depois de criar 10 mil vacas de uma vez); a medição acima foi refeita com o watchdog
+  desligado.
+- Com o módulo ainda sobra custo com dezenas de milhares (88 ms com 20 mil): cada entidade continua com despawn,
+  rastreio para os jogadores e colisão quando é processada, e as 500 vacas perto do jogador rodam todo tick.
+- Exceções: 14 casos conferidos (perto, longe no tick pulado e no tick da vez, com nome, domesticado, flecha, item,
+  aldeão, wither, dragão, machucado, zumbi comum, longe na vertical, área de chunk loader): 14 de 14.
+- `limite_enxame`: com limite de 3 vacas, um spawner de vacas parou em 3 na região (4 spawns bloqueados); 10
+  `/summon` depois levaram a região a 13 (comando não é limitado). O vanilla, no mesmo spawner, não foi medido.
+- Não testado aqui: o pack HL com as formigas do Chaos Persists (os ids da lista padrão vêm do seu log) e a
+  integração com áreas do FTB Chunks.
 
 ### 0.2.0
 **Painel gráfico do `/hl`** (seção acima), feito nas quatro etapas do documento (0.2.0-a a d).

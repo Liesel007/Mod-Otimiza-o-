@@ -112,7 +112,7 @@ public final class PainelStatus {
                 .replace("⚠", "[!]").replace("━", "=");
     }
 
-    static String cortar(String texto, int max) {
+    public static String cortar(String texto, int max) {
         return texto.length() <= max ? texto : texto.substring(0, Math.max(0, max - 1)) + "…";
     }
 
@@ -328,6 +328,8 @@ public final class PainelStatus {
                     + num(ChavesInfinityChest.CHAVES_CORRIGIDAS.get()) + " chaves";
             case LIMPEZA_ITENS -> num(LimpezaItens.LIMPEZAS.get()) + " limpezas · " + num(LimpezaItens.ITENS_REMOVIDOS.get()) + " itens";
             case RELATORIO_CONFLITOS -> num(RelatorioConflitos.avisosInicializacao) + " avisos na inicialização";
+            case ALCANCE_ATIVACAO -> num(com.hlotimizacao.recursos.AlcanceAtivacao.TICKS_PULADOS.get()) + " ticks pulados";
+            case LIMITE_ENXAME -> num(com.hlotimizacao.recursos.LimiteEnxame.BLOQUEADOS.get()) + " spawns bloqueados";
             case GATILHO_INVENTARIO, FPS_SEM_FOCO, TOASTS_VAZIOS, CORRECAO_FASTASYNCWORLDSAVE -> "ativo";
         };
     }
@@ -347,6 +349,13 @@ public final class PainelStatus {
                     num(ChavesInfinityChest.BAUS_CORRIGIDOS.get()), num(ChavesInfinityChest.CHAVES_CORRIGIDAS.get()),
                     num(ChavesInfinityChest.ENTRADAS_MESCLADAS.get()));
             case LIMPEZA_ITENS -> num(LimpezaItens.LIMPEZAS.get()) + " limpeza(s), " + num(LimpezaItens.ITENS_REMOVIDOS.get()) + " item(ns) removido(s).";
+            case ALCANCE_ATIVACAO -> String.format(PT, "%s tick(s) de entidade pulado(s) e %s processado(s) longe dos jogadores. Alcance: %d blocos "
+                            + "na horizontal, %d na vertical; longe, 1 tick a cada %d.", num(com.hlotimizacao.recursos.AlcanceAtivacao.TICKS_PULADOS.get()),
+                    num(com.hlotimizacao.recursos.AlcanceAtivacao.TICKS_PROCESSADOS_LONGE.get()), Config.ativacaoHorizontal(), Config.ativacaoVertical(),
+                    Config.ativacaoIntervalo());
+            case LIMITE_ENXAME -> "Spawns bloqueados: " + num(com.hlotimizacao.recursos.LimiteEnxame.BLOQUEADOS.get())
+                    + (com.hlotimizacao.recursos.LimiteEnxame.BLOQUEADOS.get() == 0 ? "" : " (" + com.hlotimizacao.recursos.LimiteEnxame.porTipo() + ")")
+                    + "\nLimites: " + Config.enxameLimites();
             default -> "";
         };
     }
