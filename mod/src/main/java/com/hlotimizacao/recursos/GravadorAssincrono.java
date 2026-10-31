@@ -117,6 +117,20 @@ public final class GravadorAssincrono {
         });
     }
 
+    /** Apaga o arquivo depois das gravacoes ja pedidas (que poderiam recria-lo). */
+    public static void apagar(Path arquivo) {
+        PENDENTES.incrementAndGet();
+        EXECUTOR.execute(() -> {
+            try {
+                Files.deleteIfExists(arquivo);
+            } catch (Throwable t) {
+                Config.LOGGER.error("Nao foi possivel apagar {}", arquivo, t);
+            } finally {
+                PENDENTES.decrementAndGet();
+            }
+        });
+    }
+
     /**
      * Espera todas as gravacoes pedidas ate agora terminarem. Chamado quando o servidor para, para
      * nao perder o ultimo save (a thread e daemon e morreria junto com o processo).

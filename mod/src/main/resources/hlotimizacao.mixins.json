@@ -11,7 +11,12 @@
     "trigger.TriggerInstanceMixin",
     "save.DimensionDataStorageMixin",
     "lag.LevelAccessor",
-    "lag.ChunkMapAccessor"
+    "lag.ChunkMapAccessor",
+    "avaritia.StorageUtilsMixin",
+    "avaritia.ChestHandlerAccessor",
+    "avaritia.ChestHandlerMixin",
+    "avaritia.ServerChestHandlerMixin",
+    "avaritia.ServerChestManagerMixin"
   ],
   "client": [
     "client.gpuleak.RenderTargetMixin",

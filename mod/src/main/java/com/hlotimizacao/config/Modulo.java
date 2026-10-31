@@ -31,6 +31,10 @@ public enum Modulo {
     DIAGNOSTICO_LAG("diagnostico_lag", "mixin.lag",
             "Quando um tick do servidor demora demais, registra no log onde o servidor travou e o estado de cada dimensao.",
             List.of()),
+    CORRECAO_INFINITY_CHEST("correcao_infinity_chest", "mixin.avaritia",
+            "Correcoes para o Infinity Chest do Re-Avaritia 1.4.2: chaves que crescem a cada item com NBT, NBT perdido ao tirar itens "
+                    + "e baus regravados uma vez por dimensao a cada save.",
+            List.of()),
     CORRECAO_FASTASYNCWORLDSAVE("correcao_fastasyncworldsave", null,
             "Correcao para o Fast Async World Save: espera as gravacoes pendentes ao fechar o mundo.",
             List.of()),

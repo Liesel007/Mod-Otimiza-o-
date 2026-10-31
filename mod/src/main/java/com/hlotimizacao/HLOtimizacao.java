@@ -76,7 +76,7 @@ public class HLOtimizacao {
 
     private void aoPararServidor(ServerStoppedEvent event) {
         Estatisticas.registrarResumo();
-        if (Config.ativo(Modulo.SALVAMENTO_ASSINCRONO)) {
+        if (Config.ativo(Modulo.SALVAMENTO_ASSINCRONO) || Config.ativo(Modulo.CORRECAO_INFINITY_CHEST)) {
             GravadorAssincrono.esperarPendentes();
         }
         if (Config.ativo(Modulo.CORRECAO_FASTASYNCWORLDSAVE)) {

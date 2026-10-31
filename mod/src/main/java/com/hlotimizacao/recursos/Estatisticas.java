@@ -24,6 +24,10 @@ public final class Estatisticas {
     public static final AtomicLong SALVAMENTO_FALHAS = new AtomicLong();
     public static final Set<String> SALVAMENTO_CLASSES_SINCRONAS = ConcurrentHashMap.newKeySet();
     public static final AtomicLong LAG_REGISTROS = new AtomicLong();
+    public static final AtomicLong AVARITIA_SAVES_EVITADOS = new AtomicLong();
+    public static final AtomicLong AVARITIA_BAUS_GRAVADOS = new AtomicLong();
+    public static final AtomicLong AVARITIA_BAUS_PULADOS = new AtomicLong();
+    public static final AtomicLong AVARITIA_CHAVES_CONSERTADAS = new AtomicLong();
 
     private Estatisticas() {
     }
@@ -52,6 +56,11 @@ public final class Estatisticas {
         }
         if (Config.ativo(Modulo.DIAGNOSTICO_LAG)) {
             linhas.add(String.format("diagnostico_lag: %d travamento(s) registrado(s)", LAG_REGISTROS.get()));
+        }
+        if (Config.ativo(Modulo.CORRECAO_INFINITY_CHEST)) {
+            linhas.add(String.format("correcao_infinity_chest: %d Infinity Chest(s) gravado(s) fora do thread principal, %d sem mudancas "
+                            + "nao regravado(s), %d salvamento(s) repetido(s) por dimensao evitado(s), %d chave(s) consertada(s)",
+                    AVARITIA_BAUS_GRAVADOS.get(), AVARITIA_BAUS_PULADOS.get(), AVARITIA_SAVES_EVITADOS.get(), AVARITIA_CHAVES_CONSERTADAS.get()));
         }
         return linhas;
     }

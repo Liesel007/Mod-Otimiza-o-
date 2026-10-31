@@ -64,11 +64,26 @@ mixin {
 }
 
 repositories {
+    maven {
+        name = 'Modrinth'
+        url = 'https://api.modrinth.com/maven'
+        content {
+            includeGroup 'maven.modrinth'
+        }
+    }
 }
 
 dependencies {
     minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
     annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
+
+    // Re-Avaritia 1.4.2, so para compilar o modulo correcao_infinity_chest (nao vai no jar).
+    // Para testar com ele no runServer/runClient: ./gradlew runServer -PcomAvaritia
+    compileOnly fg.deobf('maven.modrinth:re-avaritia:1.20.1-1.4.2-release')
+    benchmarkCompileOnly fg.deobf('maven.modrinth:re-avaritia:1.20.1-1.4.2-release')
+    if (project.hasProperty('comAvaritia')) {
+        runtimeOnly fg.deobf('maven.modrinth:re-avaritia:1.20.1-1.4.2-release')
+    }
 }
 
 tasks.named('processResources', ProcessResources).configure {
