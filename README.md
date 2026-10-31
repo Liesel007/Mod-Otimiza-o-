@@ -98,3 +98,10 @@ A pasta [`mod/`](mod/) contém um mod Forge 1.20.1 que reúne técnicas dos mods
 encontrados neles. Cada módulo desliga sozinho se o mod original já estiver no pack. Detalhes, lista de
 correções e como foi testado em [`mod/README.md`](mod/README.md). Jar pronto em
 [`releases/`](releases/). Teste de antes e depois em [`docs/benchmark.md`](docs/benchmark.md).
+
+## Porte: Exponential Power para 1.20.1
+
+Porte não oficial do [Exponential Power](https://github.com/MoSadie/ExponentialPower) de **MoSadie** (LGPL-3.0),
+da versão 2.1.2 para Minecraft 1.20.1 / Forge 47, na pasta [`exponentialpower/`](exponentialpower/). Mudanças,
+correções e testes em [`exponentialpower/PORTE.md`](exponentialpower/PORTE.md). Jar:
+[`releases/ExponentialPower-1.20.1-2.1.3.jar`](releases/ExponentialPower-1.20.1-2.1.3.jar).

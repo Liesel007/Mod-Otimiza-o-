@@ -1,3 +1,5 @@
+> **Porte não oficial para Minecraft 1.20.1 / Forge 47** do mod original de MoSadie (LGPL-3.0). Mudanças, créditos e testes do porte: [`PORTE.md`](PORTE.md).
+
 # ExponentialPower
 [![Build Status](https://github.com/MoSadie/ExponentialPower/workflows/Gradle%20Build%20CI/badge.svg)](https://github.com/MoSadie/ExponentialPower/actions)
 [![CurseForge](https://cf.way2muchnoise.eu/full_254249_downloads.svg)](https://minecraft.curseforge.com/projects/exponential-power)

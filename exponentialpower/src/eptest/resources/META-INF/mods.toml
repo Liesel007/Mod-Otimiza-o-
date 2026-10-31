@@ -1,0 +1,26 @@
+modLoader="javafml"
+loaderVersion="[47,)"
+license="GNU LGPL v3"
+[[mods]]
+    modId="eptest"
+    version="1.0.0"
+    displayName="Exponential Power - testes de integracao"
+    description='''Somente para o ambiente de desenvolvimento. Comando /eptest.'''
+[[dependencies.eptest]]
+    modId="exponentialpower"
+    mandatory=true
+    versionRange="[0,)"
+    ordering="AFTER"
+    side="BOTH"
+[[dependencies.eptest]]
+    modId="mekanism"
+    mandatory=true
+    versionRange="[0,)"
+    ordering="AFTER"
+    side="BOTH"
+[[dependencies.eptest]]
+    modId="draconicevolution"
+    mandatory=true
+    versionRange="[0,)"
+    ordering="AFTER"
+    side="BOTH"
