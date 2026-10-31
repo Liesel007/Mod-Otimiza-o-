@@ -1,6 +1,7 @@
 package com.hlotimizacao.cliente;
 
 import com.hlotimizacao.config.Config;
+import com.hlotimizacao.recursos.Estatisticas;
 import com.mojang.datafixers.util.Either;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.FormattedText;
@@ -96,6 +97,7 @@ public final class TooltipSeguro {
 
     private static void avisar(ItemStack stack, String origem) {
         String id = idDoItem(stack);
+        Estatisticas.TOOLTIP_ITENS.add(id);
         if (AVISADOS.add(id + "|" + origem)) {
             Config.LOGGER.warn("[tooltip_seguro] Tooltip do item {} tinha linha nula (crasharia o jogo). Origem: {}. "
                     + "A linha foi trocada por uma linha vazia. Avise o autor do mod.", id, origem);

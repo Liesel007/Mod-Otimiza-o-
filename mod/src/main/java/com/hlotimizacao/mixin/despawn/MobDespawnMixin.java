@@ -1,5 +1,6 @@
 package com.hlotimizacao.mixin.despawn;
 
+import com.hlotimizacao.recursos.Estatisticas;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
@@ -47,6 +48,9 @@ public abstract class MobDespawnMixin extends LivingEntity {
     @Inject(method = "setItemSlotAndDropWhenKilled", at = @At("TAIL"))
     private void hlotimizacao$desfazerPersistencia(EquipmentSlot slot, ItemStack stack, CallbackInfo ci) {
         if (!this.hlotimizacao$persistenteAntes && !this.hasCustomName()) {
+            if (this.persistenceRequired) {
+                Estatisticas.DESPAWN_MOBS_LIBERADOS.incrementAndGet();
+            }
             this.persistenceRequired = false;
         }
     }
@@ -56,6 +60,7 @@ public abstract class MobDespawnMixin extends LivingEntity {
         for (EquipmentSlot slot : EquipmentSlot.values()) {
             ItemStack stack = this.getItemBySlot(slot);
             if (!stack.isEmpty() && this.getEquipmentDropChance(slot) > 1.0F && !EnchantmentHelper.hasVanishingCurse(stack)) {
+                Estatisticas.DESPAWN_ITENS_DEVOLVIDOS.incrementAndGet();
                 this.spawnAtLocation(stack);
                 this.setItemSlot(slot, ItemStack.EMPTY);
             }

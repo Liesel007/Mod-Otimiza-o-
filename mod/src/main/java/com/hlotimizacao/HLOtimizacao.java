@@ -4,11 +4,17 @@ import com.hlotimizacao.config.Config;
 import com.hlotimizacao.config.Modulo;
 import com.hlotimizacao.recursos.GravadorAssincrono;
 import com.hlotimizacao.recursos.DiagnosticoLag;
+import com.hlotimizacao.recursos.Estatisticas;
 import com.hlotimizacao.recursos.RelatorioConflitos;
 import com.hlotimizacao.recursos.VerificadorMods;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.common.MinecraftForge;
+import net.minecraft.commands.Commands;
+import net.minecraft.network.chat.Component;
+import net.minecraftforge.event.RegisterCommandsEvent;
+import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.event.server.ServerStartedEvent;
+import net.minecraftforge.event.server.ServerStoppingEvent;
 import net.minecraftforge.event.server.ServerStoppedEvent;
 import net.minecraftforge.fml.IExtensionPoint;
 import net.minecraftforge.fml.ModLoadingContext;
@@ -30,6 +36,7 @@ public class HLOtimizacao {
 
         MinecraftForge.EVENT_BUS.addListener(this::aoIniciarServidor);
         MinecraftForge.EVENT_BUS.addListener(this::aoPararServidor);
+        MinecraftForge.EVENT_BUS.addListener(this::comandos);
         if (Config.ativo(Modulo.RELATORIO_CONFLITOS)) {
             int avisos = VerificadorMods.verificar();
             Config.LOGGER.info("Verificacao da lista de mods: {} aviso(s)", avisos);
@@ -37,6 +44,9 @@ public class HLOtimizacao {
         if (Config.ativo(Modulo.DIAGNOSTICO_LAG)) {
             MinecraftForge.EVENT_BUS.addListener(DiagnosticoLag::aoTick);
             MinecraftForge.EVENT_BUS.addListener(DiagnosticoLag::aoCarregarChunk);
+            MinecraftForge.EVENT_BUS.addListener((ServerStartedEvent e) -> DiagnosticoLag.aoIniciarServidor(e.getServer()));
+            MinecraftForge.EVENT_BUS.addListener((ServerStoppingEvent e) -> DiagnosticoLag.aoPararServidor());
+            MinecraftForge.EVENT_BUS.addListener((PlayerEvent.PlayerLoggedInEvent e) -> DiagnosticoLag.aoEntrarJogador());
             DiagnosticoLag.iniciar();
         }
         if (Config.ativo(Modulo.CORRECAO_FASTASYNCWORLDSAVE)) {
@@ -54,7 +64,18 @@ public class HLOtimizacao {
         }
     }
 
+    private void comandos(RegisterCommandsEvent event) {
+        event.getDispatcher().register(Commands.literal(MOD_ID).then(Commands.literal("status").executes(ctx -> {
+            ctx.getSource().sendSuccess(() -> Component.literal("[HL Otimizacao] desde que o jogo abriu:"), false);
+            for (String linha : Estatisticas.resumo()) {
+                ctx.getSource().sendSuccess(() -> Component.literal("  " + linha), false);
+            }
+            return 1;
+        })));
+    }
+
     private void aoPararServidor(ServerStoppedEvent event) {
+        Estatisticas.registrarResumo();
         if (Config.ativo(Modulo.SALVAMENTO_ASSINCRONO)) {
             GravadorAssincrono.esperarPendentes();
         }

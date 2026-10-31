@@ -15,6 +15,9 @@ import java.util.EnumMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Configuracao lida antes dos mixins serem aplicados, por isso usa um arquivo .properties simples
@@ -23,6 +26,7 @@ import java.util.Properties;
 public final class Config {
     public static final Logger LOGGER = LoggerFactory.getLogger("HL Otimizacao");
     private static final String ARQUIVO = "hlotimizacao.properties";
+    public static final String URL_PROJETO = "https://github.com/Liesel007/Mod-Otimiza-o-";
 
     private static final Map<Modulo, Boolean> ATIVOS = new EnumMap<>(Modulo.class);
     private static final Map<Modulo, String> MOTIVOS = new EnumMap<>(Modulo.class);
@@ -30,6 +34,8 @@ public final class Config {
     private static int fpsMinimizado = 1;
     private static int lagLimiteMs = 2000;
     private static int lagIntervaloS = 30;
+    private static int lagToleranciaS = 30;
+    private static Set<String> salvamentoSerializarClasses = Set.of();
     private static boolean carregado = false;
 
     private Config() {
@@ -65,11 +71,16 @@ public final class Config {
         fpsMinimizado = lerInt(props, "fps_sem_foco.limite_minimizado", 1, 1, 260);
         lagLimiteMs = lerInt(props, "diagnostico_lag.limite_ms", 2000, 100, 600000);
         lagIntervaloS = lerInt(props, "diagnostico_lag.intervalo_s", 30, 1, 3600);
+        lagToleranciaS = lerInt(props, "diagnostico_lag.tolerancia_inicio_s", 30, 0, 3600);
+        salvamentoSerializarClasses = Stream.of(props.getProperty("salvamento_assincrono.serializar_classes", "").split(","))
+                .map(String::trim).filter(c -> !c.isEmpty()).collect(Collectors.toUnmodifiableSet());
         for (String[] chave : new String[][]{
                 {"fps_sem_foco.limite", Integer.toString(fpsSemFoco)},
                 {"fps_sem_foco.limite_minimizado", Integer.toString(fpsMinimizado)},
                 {"diagnostico_lag.limite_ms", Integer.toString(lagLimiteMs)},
-                {"diagnostico_lag.intervalo_s", Integer.toString(lagIntervaloS)}}) {
+                {"diagnostico_lag.intervalo_s", Integer.toString(lagIntervaloS)},
+                {"diagnostico_lag.tolerancia_inicio_s", Integer.toString(lagToleranciaS)},
+                {"salvamento_assincrono.serializar_classes", String.join(",", salvamentoSerializarClasses)}}) {
             if (!props.containsKey(chave[0])) {
                 faltando = true;
                 props.setProperty(chave[0], chave[1]);
@@ -136,6 +147,17 @@ public final class Config {
         return lagIntervaloS;
     }
 
+    public static int lagToleranciaS() {
+        carregar();
+        return lagToleranciaS;
+    }
+
+    /** Classes com save(File) proprio que o usuario permitiu serializar e gravar em outra thread. */
+    public static Set<String> salvamentoSerializarClasses() {
+        carregar();
+        return salvamentoSerializarClasses;
+    }
+
     public static boolean modInstalado(String modId) {
         LoadingModList lista = LoadingModList.get();
         return lista != null && lista.getModFileById(modId) != null;
@@ -177,6 +199,14 @@ public final class Config {
         sb.append("# e intervalo minimo (s) entre dois registros.\n");
         sb.append("diagnostico_lag.limite_ms=").append(props.getProperty("diagnostico_lag.limite_ms")).append('\n');
         sb.append("diagnostico_lag.intervalo_s=").append(props.getProperty("diagnostico_lag.intervalo_s")).append('\n');
+        sb.append("# Segundos sem registrar depois de abrir o mundo (e depois do primeiro jogador entrar),\n");
+        sb.append("# enquanto classes e chunks ainda estao carregando.\n");
+        sb.append("diagnostico_lag.tolerancia_inicio_s=").append(props.getProperty("diagnostico_lag.tolerancia_inicio_s")).append("\n\n");
+        sb.append("# salvamento_assincrono: SavedData que sobrescrevem save(File) sao gravados no thread principal, do jeito do mod.\n");
+        sb.append("# O log mostra quais classes sao essas. Classes listadas aqui (nomes completos, separados por virgula) passam\n");
+        sb.append("# a ser serializadas com save(CompoundTag) e gravadas em outra thread, IGNORANDO o save(File) do mod.\n");
+        sb.append("# So use se souber que o save(File) da classe apenas chama o do Minecraft (risco de perder dados se fizer mais).\n");
+        sb.append("salvamento_assincrono.serializar_classes=").append(props.getProperty("salvamento_assincrono.serializar_classes")).append('\n');
         try {
             Files.createDirectories(caminho.getParent());
             try (Writer writer = Files.newBufferedWriter(caminho, StandardCharsets.UTF_8)) {

@@ -1,6 +1,7 @@
 package com.hlotimizacao.mixin.save;
 
 import com.hlotimizacao.config.Config;
+import com.hlotimizacao.recursos.Estatisticas;
 import com.hlotimizacao.recursos.GravadorAssincrono;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.MinecraftServer;
@@ -63,6 +64,9 @@ public abstract class DimensionDataStorageMixin {
             String nome = entrada.getKey();
             File arquivo = this.getDataFile(nome);
             if (hlotimizacao$temSaveProprio(dados.getClass())) {
+                if (dados.isDirty()) {
+                    Estatisticas.SALVAMENTO_SINCRONOS.incrementAndGet();
+                }
                 dados.save(arquivo);
                 continue;
             }
@@ -73,6 +77,7 @@ public abstract class DimensionDataStorageMixin {
             if (caminho == null) {
                 // Nome que o java.nio nao aceita neste sistema (ex.: ":" no Windows, como no Goblin
                 // Traders). O vanilla grava com java.io.File, que aceita; entao salva do jeito vanilla.
+                Estatisticas.SALVAMENTO_SINCRONOS.incrementAndGet();
                 dados.save(arquivo);
                 continue;
             }
@@ -87,6 +92,7 @@ public abstract class DimensionDataStorageMixin {
             }
             NbtUtils.addCurrentDataVersion(tag);
             dados.setDirty(false);
+            Estatisticas.SALVAMENTO_ASSINCRONOS.incrementAndGet();
             GravadorAssincrono.gravar(tag, caminho, nome, hlotimizacao$remarcarSujo(dados));
         }
         ci.cancel();
@@ -122,15 +128,28 @@ public abstract class DimensionDataStorageMixin {
     @Unique
     private static boolean hlotimizacao$temSaveProprio(Class<?> classe) {
         return hlotimizacao$sobrescreveSave.computeIfAbsent(classe, c -> {
+            boolean proprio;
             try {
                 if (hlotimizacao$saveArquivo == null) {
                     hlotimizacao$saveArquivo = ObfuscationReflectionHelper.findMethod(SavedData.class, "m_77757_", File.class);
                 }
-                return c.getMethod(hlotimizacao$saveArquivo.getName(), File.class).getDeclaringClass() != SavedData.class;
+                proprio = c.getMethod(hlotimizacao$saveArquivo.getName(), File.class).getDeclaringClass() != SavedData.class;
             } catch (Throwable t) {
                 Config.LOGGER.debug("Nao foi possivel verificar se {} sobrescreve save(File); salvando do jeito original", c.getName(), t);
-                return true; // na duvida, usa o caminho original
+                proprio = true; // na duvida, usa o caminho original
             }
+            if (!proprio) {
+                return false;
+            }
+            if (Config.salvamentoSerializarClasses().contains(c.getName())) {
+                Config.LOGGER.info("[salvamento_assincrono] {} sobrescreve save(File), mas esta em salvamento_assincrono.serializar_classes: "
+                        + "sera serializado com save(CompoundTag) e gravado em outra thread", c.getName());
+                return false;
+            }
+            Estatisticas.SALVAMENTO_CLASSES_SINCRONAS.add(c.getName());
+            Config.LOGGER.info("[salvamento_assincrono] {} sobrescreve save(File) (formato proprio do mod): sera gravado no thread principal, "
+                    + "do jeito do mod. O modulo nao atua nessa classe (ver salvamento_assincrono.serializar_classes na config).", c.getName());
+            return true;
         });
     }
 }

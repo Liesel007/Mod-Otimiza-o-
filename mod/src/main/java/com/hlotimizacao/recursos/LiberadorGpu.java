@@ -60,12 +60,15 @@ public final class LiberadorGpu {
             // desenhando.
             if (ids[0] > -1) {
                 GlStateManager._glDeleteFramebuffers(ids[0]);
+                Estatisticas.GPU_FRAMEBUFFERS.incrementAndGet();
             }
             if (ids[1] > -1) {
                 TextureUtil.releaseTextureId(ids[1]);
+                Estatisticas.GPU_TEXTURAS.incrementAndGet();
             }
             if (ids[2] > -1) {
                 TextureUtil.releaseTextureId(ids[2]);
+                Estatisticas.GPU_TEXTURAS.incrementAndGet();
             }
         }
     }

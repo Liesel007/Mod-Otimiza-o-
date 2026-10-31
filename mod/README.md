@@ -5,7 +5,7 @@ Mod de otimização feito a partir do estudo do código dos mods do modpack HL
 **código próprio** (sem copiar código dos outros mods, que têm licenças diferentes) e **corrige erros**
 encontrados neles.
 
-**Jar pronto:** [`releases/hlotimizacao-0.1.2.jar`](../releases/hlotimizacao-0.1.2.jar). Basta colocá-lo
+**Jar pronto:** [`releases/hlotimizacao-0.1.3.jar`](../releases/hlotimizacao-0.1.3.jar). Basta colocá-lo
 na pasta `mods` da instância.
 
 ## Como ele convive com os mods do pack
@@ -76,6 +76,13 @@ o log avisa **uma vez por item**, com o id do item e a origem:
 Também detecta travamentos **entre** ticks (tarefas de chunk executadas enquanto o servidor espera o próximo tick).
 Ignora o jogo pausado no singleplayer. No máximo 1 registro a cada `diagnostico_lag.intervalo_s` (padrão 30).
 
+## Comando e resumo (0.1.3)
+
+- `/hlotimizacao status` mostra o que cada módulo fez desde que o jogo abriu (mobs liberados e itens devolvidos
+  pelo `despawn_itens`, framebuffers/texturas liberados pelo `vazamento_gpu`, itens corrigidos pelo `tooltip_seguro`,
+  arquivos gravados fora/dentro do thread principal pelo `salvamento_assincrono`, travamentos registrados).
+- O mesmo resumo vai para o log ao fechar o mundo (`Resumo desde que o jogo abriu:`).
+
 ## Como foi testado
 
 Teste de antes e depois com números: [`docs/benchmark.md`](../docs/benchmark.md).
@@ -95,6 +102,54 @@ Teste de antes e depois com números: [`docs/benchmark.md`](../docs/benchmark.md
   e o funcionamento junto com o pack HL completo. Teste num mundo de cópia antes de usar no mundo principal.
 
 ## Histórico de versões
+
+### 0.1.3
+Feita a partir do relatório do `latest.log` de uma sessão de 1h18 com ~440 mods.
+
+`diagnostico_lag`:
+- **Pausa e servidor ocioso não contam mais.** Fora do tick, só conta o tempo em que a thread do servidor está
+  trabalhando sem parar; parada esperando (jogo pausado, servidor ocioso) zera a contagem. Na 0.1.2, ficar parado
+  e depois trabalhar 1 s gerava "travado há 45 s / tick de 58 s" (os maiores números do log eram esses).
+- **Abrir e fechar o mundo não contam mais.** Nada é registrado entre o `ServerStoppingEvent` e o
+  `ServerStartedEvent`, nem durante `diagnostico_lag.tolerancia_inicio_s` (padrão 30) depois de abrir o mundo e
+  depois do primeiro jogador entrar.
+- **Provável causa:** tira uma amostra da pilha a cada 250 ms enquanto o travamento durar (até 20) e mostra o mod
+  dono do primeiro frame que não é do Minecraft, Forge ou Java, com a porcentagem
+  (`Provavel causa: pehkui 85% (virtuoel.pehkui...ScaleData.getScale), avaritia 15% (...)`). Handlers de mixin
+  injetados em classes do Minecraft contam para o mod do mixin.
+- Marca quando o travamento aconteceu durante um salvamento do mundo ("Saving and pausing game" ou automático),
+  porque aí a causa costuma ser gravação em disco.
+- Relatório compacto: só as dimensões com jogadores, chunks ou entidades; as outras viram `+N dimensao(oes) vazia(s)`.
+  Block entities "dormindo" do Canary (`<canary_sleeping>`) aparecem pelo tipo real, com um contador `(N dormindo)`.
+
+`salvamento_assincrono`:
+- Avisa uma vez por classe que cai na gravação síncrona por sobrescrever `save(File)` (ex.: `ConduitSavedData` do
+  EnderIO), para o usuário saber onde o módulo não atua.
+- Nova opção `salvamento_assincrono.serializar_classes` (vazia por padrão): classes listadas passam a ser
+  serializadas com `save(CompoundTag)` e gravadas em outra thread, **ignorando** o `save(File)` do mod. Só use se
+  souber que esse `save(File)` apenas chama o do Minecraft.
+
+Outros:
+- Resumo ao fechar o mundo e comando `/hlotimizacao status` (acima).
+- `relatorio_conflitos` aponta o link do projeto em vez de um arquivo do repositório.
+
+Testes (servidor dedicado, com comandos que simulam cada caso):
+- pausa simulada (thread parada 15 s, depois 1 s de trabalho, entre ticks): a 0.1.2 registrou
+  "travado há 15604 ms / Tick lento: 16000 ms"; a 0.1.3 não registrou nada;
+- travamento de 3 s nos primeiros 30 s depois de abrir: não registrado;
+- 3 s de trabalho entre ticks: registrado ("ocupado por pelo menos 2758 ms entre ticks"), causa `hlbench 100%`;
+- 3 s dentro do tick: registrado, causa `hlbench 100% (TesteLag.travar)`;
+- `save(File)` lento durante `save-all`: registrado como "durante um salvamento do mundo", causa `hlbench 80%`; a classe
+  foi avisada uma vez como síncrona; a classe da lista `serializar_classes` foi gravada em outra thread sem chamar o
+  `save(File)` dela;
+- resumo ao fechar e `/hlotimizacao status` com os contadores.
+- Não testado aqui: a pausa real do singleplayer num cliente (testada pela simulação acima, que reproduz o mesmo
+  comportamento da thread) e o Canary (não está no ambiente de teste).
+- Não feito: mixins para o Avaritia (`salvamento_assincrono_extra`), ver abaixo.
+
+Sobre os travamentos do Avaritia e FTB Essentials ao salvar: `FileOutputStream.open0` demorando de 2 a 13 s só para
+abrir um arquivo costuma ser o antivírus examinando cada arquivo do save. Colocar a pasta da instância nas exclusões
+do Windows Defender deve reduzir bastante esses travamentos.
 
 ### 0.1.2
 - Novo módulo `tooltip_seguro` e novo módulo `diagnostico_lag` (acima).

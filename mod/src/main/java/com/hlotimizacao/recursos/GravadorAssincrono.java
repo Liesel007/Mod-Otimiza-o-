@@ -104,6 +104,7 @@ public final class GravadorAssincrono {
                     Files.move(temporario, destino, StandardCopyOption.REPLACE_EXISTING);
                 }
             } catch (Throwable t) {
+                Estatisticas.SALVAMENTO_FALHAS.incrementAndGet();
                 Config.LOGGER.error("Nao foi possivel salvar os dados '{}' em {}; serao regravados no proximo save", nome, destino, t);
                 try {
                     aoFalhar.run();
