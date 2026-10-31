@@ -29,5 +29,6 @@
       "name": "advancedenderstorage",
       "rolls": 1.0
     }
-  ]
+  ],
+  "random_sequence": "exponentialpower:blocks/advanced_ender_storage"
 }

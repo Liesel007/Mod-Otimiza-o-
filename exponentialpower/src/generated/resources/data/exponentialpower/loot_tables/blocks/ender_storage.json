@@ -29,5 +29,6 @@
       "name": "enderstorage",
       "rolls": 1.0
     }
-  ]
+  ],
+  "random_sequence": "exponentialpower:blocks/ender_storage"
 }

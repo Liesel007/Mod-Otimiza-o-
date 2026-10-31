@@ -1,5 +1,6 @@
 {
   "type": "minecraft:crafting_shaped",
+  "category": "misc",
   "group": "exponentialpower",
   "key": {
     "D": {
@@ -19,5 +20,6 @@
   ],
   "result": {
     "item": "exponentialpower:advanced_ender_storage"
-  }
+  },
+  "show_notification": true
 }

@@ -44,5 +44,6 @@
       "name": "advancedendergenerator",
       "rolls": 1.0
     }
-  ]
+  ],
+  "random_sequence": "exponentialpower:blocks/advanced_ender_generator"
 }

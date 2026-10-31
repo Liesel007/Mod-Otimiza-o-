@@ -1,27 +1,31 @@
 modLoader="javafml"
-loaderVersion="[41,)"
+loaderVersion="[47,)"
 issueTrackerURL="https://github.com/MoSadie/ExponentialPower/issues"
 license="GNU LGPL v3"
 logoFile="modIcon.png"
 [[mods]]
     modId="exponentialpower"
-    version="${file.jarVersion}"
+    version="${version}"
     displayName="Exponential Power"
-    updateJSONURL="https://github.com/MoSadie/ExponentialPower/raw/master/update.json"
-    displayURL="https://github.com/MoSadie/ExponentialPowerr"
+    # Porte nao oficial para 1.20.1. O updateJSONURL do original foi removido para nao anunciar
+    # as versoes 1.19 do autor como atualizacao deste porte.
+    displayURL="https://github.com/MoSadie/ExponentialPower"
     authors="MoSadie"
+    credits="Mod original: MoSadie. Porte para Minecraft 1.20.1 / Forge 47: Liesel007 (codigo-fonte LGPL-3.0 em https://github.com/Liesel007/Mod-Otimiza-o- , pasta exponentialpower)."
     description='''
       Adds generators creating an exponential amount of RF/tick. And some storage blocks to hold that power.
+
+      Unofficial port to Minecraft 1.20.1 / Forge 47 of Exponential Power 2.1.2 by MoSadie (LGPL-3.0).
       '''
 [[dependencies.exponentialpower]]
     modId="forge"
     mandatory=true
-    versionRange="[41,)"
+    versionRange="[47,)"
     ordering="NONE"
     side="BOTH"
 [[dependencies.exponentialpower]]
     modId="minecraft"
     mandatory=true
-    versionRange="[1.19,1.20)"
+    versionRange="[1.20.1,1.21)"
     ordering="NONE"
     side="BOTH"

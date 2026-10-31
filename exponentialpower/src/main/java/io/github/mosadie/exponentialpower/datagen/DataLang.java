@@ -2,13 +2,13 @@ package io.github.mosadie.exponentialpower.datagen;
 
 import io.github.mosadie.exponentialpower.ExponentialPower;
 import io.github.mosadie.exponentialpower.setup.Registration;
-import net.minecraft.data.DataGenerator;
+import net.minecraft.data.PackOutput;
 import net.minecraftforge.common.data.LanguageProvider;
 
 public class DataLang extends LanguageProvider {
 
-    public DataLang(DataGenerator gen, String locale) {
-        super(gen, ExponentialPower.MODID, locale);
+    public DataLang(PackOutput output, String locale) {
+        super(output, ExponentialPower.MODID, locale);
     }
 
     @Override

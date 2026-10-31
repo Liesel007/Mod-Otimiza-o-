@@ -1,5 +1,6 @@
 {
   "type": "minecraft:crafting_shaped",
+  "category": "misc",
   "group": "exponentialpower",
   "key": {
     "D": {
@@ -22,5 +23,6 @@
   ],
   "result": {
     "item": "exponentialpower:ender_cell"
-  }
+  },
+  "show_notification": true
 }

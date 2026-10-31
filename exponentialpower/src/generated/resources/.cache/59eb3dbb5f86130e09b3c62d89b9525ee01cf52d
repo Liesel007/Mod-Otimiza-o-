@@ -1,0 +1,5 @@
+// 1.20.1	2026-10-31T02:47:14.212341503	Loot Tables
+d65c3558ac7f66a43ee00924699c6a2a3f3594a4 data/exponentialpower/loot_tables/blocks/advanced_ender_generator.json
+dede81a7eb8e2a1b842c9743199834fcbc1c66b7 data/exponentialpower/loot_tables/blocks/advanced_ender_storage.json
+fec41f4759e0ae6523f24faafd69f8e7ac58c1a0 data/exponentialpower/loot_tables/blocks/ender_generator.json
+497e387f5debca1b170a9e14b4ed447d8ebdd4b7 data/exponentialpower/loot_tables/blocks/ender_storage.json
