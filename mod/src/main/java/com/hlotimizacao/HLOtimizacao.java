@@ -5,13 +5,11 @@ import com.hlotimizacao.config.Modulo;
 import com.hlotimizacao.recursos.GravadorAssincrono;
 import com.hlotimizacao.recursos.DiagnosticoLag;
 import com.hlotimizacao.recursos.Estatisticas;
+import com.hlotimizacao.recursos.LimpezaItens;
 import com.hlotimizacao.recursos.RelatorioConflitos;
 import com.hlotimizacao.recursos.VerificadorMods;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.common.MinecraftForge;
-import net.minecraft.commands.Commands;
-import net.minecraft.network.chat.Component;
-import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.event.server.ServerStartedEvent;
 import net.minecraftforge.event.server.ServerStoppingEvent;
@@ -36,7 +34,13 @@ public class HLOtimizacao {
 
         MinecraftForge.EVENT_BUS.addListener(this::aoIniciarServidor);
         MinecraftForge.EVENT_BUS.addListener(this::aoPararServidor);
-        MinecraftForge.EVENT_BUS.addListener(this::comandos);
+        // Prioridade mais baixa: registra depois dos outros mods, para saber se /hl ja esta em uso.
+        MinecraftForge.EVENT_BUS.addListener(net.minecraftforge.eventbus.api.EventPriority.LOWEST, Comandos::registrar);
+        if (Config.ativo(Modulo.LIMPEZA_ITENS)) {
+            MinecraftForge.EVENT_BUS.addListener(LimpezaItens::aoTick);
+            MinecraftForge.EVENT_BUS.addListener(LimpezaItens::aoMorrer);
+            MinecraftForge.EVENT_BUS.addListener((ServerStartedEvent e) -> LimpezaItens.aoIniciarServidor(e.getServer()));
+        }
         if (Config.ativo(Modulo.RELATORIO_CONFLITOS)) {
             int avisos = VerificadorMods.verificar();
             Config.LOGGER.info("Verificacao da lista de mods: {} aviso(s)", avisos);
@@ -62,16 +66,6 @@ public class HLOtimizacao {
         if (Config.ativo(Modulo.RELATORIO_CONFLITOS)) {
             RelatorioConflitos.registrar(event.getServer());
         }
-    }
-
-    private void comandos(RegisterCommandsEvent event) {
-        event.getDispatcher().register(Commands.literal(MOD_ID).then(Commands.literal("status").executes(ctx -> {
-            ctx.getSource().sendSuccess(() -> Component.literal("[HL Otimizacao] desde que o jogo abriu:"), false);
-            for (String linha : Estatisticas.resumo()) {
-                ctx.getSource().sendSuccess(() -> Component.literal("  " + linha), false);
-            }
-            return 1;
-        })));
     }
 
     private void aoPararServidor(ServerStoppedEvent event) {

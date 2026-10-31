@@ -93,7 +93,10 @@ public final class GravadorAssincrono {
             try {
                 Path temporario = destino.resolveSibling(destino.getFileName() + ".hltmp");
                 Files.createDirectories(destino.getParent());
-                try (FileOutputStream arquivo = new FileOutputStream(temporario.toFile())) {
+                long abrindo = System.nanoTime();
+                FileOutputStream aberto = new FileOutputStream(temporario.toFile());
+                DiagnosticoAmbiente.arquivoAberto((System.nanoTime() - abrindo) / 1_000_000, nome);
+                try (FileOutputStream arquivo = aberto) {
                     NbtIo.writeCompressed(tag, new NaoFecha(arquivo));
                     // Garante que os bytes estao no disco antes de substituir o arquivo antigo.
                     arquivo.getFD().sync();

@@ -37,6 +37,11 @@ minecraft {
             property 'forge.logging.markers', 'REGISTRIES'
             property 'forge.logging.console.level', 'debug'
             property 'mixin.debug.verbose', 'true'
+            // Mods de terceiros (libs_teste) trazem refmaps em nomes SRG; em dev precisam ser convertidos.
+            property 'mixin.env.remapRefMap', 'true'
+            property 'mixin.env.refMapRemappingFile', "${projectDir}/build/createSrgToMcp/output.srg"
+            // Mixin do mod de testes (hlbench) que falha de proposito, para testar o detector de mixins com falha.
+            args '--mixin.config', 'hlbench.mixins.json'
             mods {
                 "${mod_id}" {
                     source sourceSets.main
@@ -64,11 +69,21 @@ mixin {
 }
 
 repositories {
+    // Jars de outros mods usados so nos testes (nao vao para o git): libs_teste/<nome>-<versao>.jar
+    flatDir { dirs 'libs_teste' }
 }
 
 dependencies {
     minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
     annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
+
+    // Re-Avaritia 1.4.2 para testar o modulo correcao_infinity_chest, se o jar estiver em libs_teste
+    // (https://modrinth.com/mod/re-avaritia). O mod em si nao depende dele.
+    if (file('libs_teste/Re-Avaritia-forge-1.20.1-1.4.2-release.jar').exists()) {
+        def avaritia = fg.deobf('local:Re-Avaritia-forge-1.20.1:1.4.2-release')
+        runtimeOnly avaritia
+        benchmarkCompileOnly avaritia
+    }
 }
 
 tasks.named('processResources', ProcessResources).configure {

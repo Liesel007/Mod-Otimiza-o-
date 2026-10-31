@@ -74,6 +74,25 @@ public final class VerificadorMods {
         return new AnaliseNome(true, compativel, textos);
     }
 
+    /** Todas as versoes do nome sao exatas e mais novas que 1.20.1 (ex.: "+1.20.4")? */
+    static boolean maisNovaQue1201(List<String> versoes) {
+        if (versoes.isEmpty()) {
+            return false;
+        }
+        for (String v : versoes) {
+            String[] partes = v.split("\\.");
+            if (partes.length != 3 || !partes[1].matches("\\d+") || !partes[2].matches("\\d+")) {
+                return false; // "1.20", "1.20.x", "1.18x": nao e uma versao exata
+            }
+            int menor = Integer.parseInt(partes[1]);
+            int patch = Integer.parseInt(partes[2]);
+            if (menor < 20 || (menor == 20 && patch <= 1)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     private static boolean contem(int[] f, int menor, int patch) {
         boolean depoisDoInicio = menor > f[0] || (menor == f[0] && patch >= f[1]);
         boolean antesDoFim = menor < f[2] || (menor == f[2] && patch <= f[3]);
@@ -113,7 +132,12 @@ public final class VerificadorMods {
                     .flatMap(mod -> mod.getDependencies().stream())
                     .filter(dep -> "minecraft".equals(dep.getModId()))
                     .anyMatch(dep -> dep.getVersionRange().containsVersion(MC));
-            if (declaraCompativel) {
+            if (declaraCompativel && maisNovaQue1201(analise.versoes())) {
+                Config.LOGGER.warn("[Versao] {}: o arquivo e a versao feita para {} (mais nova que a 1.20.1). O mod declara {} e por isso carrega, "
+                        + "mas pode usar codigo que nao existe na 1.20.1. Procure o arquivo feito para 1.20.1.",
+                        nome, analise.versoes(), faixaDeclarada.orElse("?"));
+                avisos++;
+            } else if (declaraCompativel) {
                 Config.LOGGER.info("[Versao] {}: o nome indica {}, mas o mod declara {} (inclui 1.20.1). Provavelmente ok.",
                         nome, analise.versoes(), faixaDeclarada.orElse("?"));
             } else {

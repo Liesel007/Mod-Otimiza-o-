@@ -128,3 +128,19 @@ Cupboard (log de carga síncrona de chunk), Connectivity (estatísticas de rede)
 - Pré-gerar o mundo com Chunky antes de jogar (ex.: `/chunky radius 3000` e `/chunky start`).
 - Se notar travadas ao salvar, o `chunkSaveDelay` do Smooth Chunk (`config/smoothchunk.json`) controla
   o atraso.
+
+## 6. Técnicas usadas nos módulos da 0.1.4
+
+- **`correcao_infinity_chest` (Re-Avaritia 1.4.2, licença MIT):** o problema era um cache que guardava
+  uma chave derivada (`id#hash`) onde deveria guardar só o id. A correção é o cache só aceitar a forma
+  canônica, recalculada a partir do registro, e usar `ConcurrentHashMap` (o cache original é usado por
+  duas threads no singleplayer). Os dados que já foram salvos errados são consertados ao carregar
+  (normalizar e somar duplicatas), com cópia `.hlbak` antes. A lista de chaves passou a ser reconstruída
+  só quando é lida depois de mudar (*dirty checking*, como no BadOptimizations e no Canary), e não a
+  cada item novo.
+- **Detector de mixins com falha:** `Mixins.registerErrorHandlerClass` recebe toda falha de aplicação de
+  qualquer mod, sem precisar ler o log. Uma tabela de correções conhecidas transforma a exceção numa
+  instrução para o jogador.
+- **`limpeza_itens` (ideia dos plugins ClearLag):** a remoção é espalhada em lotes por tick (como o Smooth
+  Chunk faz com os salvamentos) e usa `discard()`, sem som nem partículas. Os drops da morte de jogadores
+  recebem uma marca (`LivingDropsEvent`, NBT persistente da entidade) para nunca serem apagados.

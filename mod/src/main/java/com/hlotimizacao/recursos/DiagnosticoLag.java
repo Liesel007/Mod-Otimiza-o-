@@ -380,6 +380,64 @@ public final class DiagnosticoLag {
                 .collect(Collectors.joining(", ")) + String.format(" [%d amostra(s)]", total);
     }
 
+    private static final Set<String> ABRIR_ARQUIVO = Set.of(
+            "java.io.FileOutputStream.open0", "java.io.FileInputStream.open0", "java.io.RandomAccessFile.open0",
+            "sun.nio.fs.WindowsNativeDispatcher.CreateFile0", "sun.nio.fs.UnixNativeDispatcher.open0");
+
+    /**
+     * Classifica as amostras pelo topo da pilha: abrindo arquivo (disco ou antivirus) ou carregando
+     * classes (acontece uma vez por classe). Null se nenhuma amostra se encaixa.
+     */
+    static String tipo(List<StackTraceElement[]> amostras) {
+        int arquivo = 0;
+        int classes = 0;
+        String exemploArquivo = null;
+        for (StackTraceElement[] pilha : amostras) {
+            if (pilha.length == 0) {
+                continue;
+            }
+            String topo = pilha[0].getClassName() + "." + pilha[0].getMethodName();
+            if (ABRIR_ARQUIVO.contains(topo)) {
+                arquivo++;
+                if (exemploArquivo == null) {
+                    for (StackTraceElement f : pilha) {
+                        String dono = modDoFrame(f);
+                        if (dono != null) {
+                            exemploArquivo = dono;
+                            break;
+                        }
+                    }
+                }
+                continue;
+            }
+            for (int i = 0; i < Math.min(pilha.length, 20); i++) {
+                String c = pilha[i].getClassName();
+                String m = pilha[i].getMethodName();
+                if ((c.equals("java.lang.ClassLoader") && m.startsWith("defineClass")) || m.equals("<clinit>")) {
+                    classes++;
+                    break;
+                }
+            }
+        }
+        if (arquivo == 0 && classes == 0) {
+            return null;
+        }
+        int total = amostras.size();
+        StringBuilder sb = new StringBuilder();
+        if (arquivo > 0) {
+            sb.append(String.format("%d%% abrindo arquivos para gravar%s (se for frequente, provavelmente o antivirus)",
+                    Math.round(100.0 * arquivo / total), exemploArquivo == null ? "" : " (" + exemploArquivo + ")"));
+            DiagnosticoAmbiente.arquivoAberto(arquivo * AMOSTRA_MS, "durante um travamento");
+        }
+        if (classes > 0) {
+            if (sb.length() > 0) {
+                sb.append("; ");
+            }
+            sb.append(String.format("%d%% carregando classes (acontece uma vez, normalmente logo depois de entrar no mundo)", Math.round(100.0 * classes / total)));
+        }
+        return sb.toString();
+    }
+
     /** Roda na thread do servidor. duracaoMs < 0: desconhecida (usa a da vigia). */
     private static void relatorio(MinecraftServer server, Travamento t, long duracaoMs) {
         atual = null;
@@ -397,6 +455,10 @@ public final class DiagnosticoLag {
             sb.append(String.format("[diagnostico_lag] Tick lento: %d ms (dentro do tick%s).%n", duracao, marcaSalvamento(t)));
         }
         sb.append("  Provavel causa: ").append(provavelCausa(amostras)).append('\n');
+        String tipo = tipo(amostras);
+        if (tipo != null) {
+            sb.append("  Tipo: ").append(tipo).append('\n');
+        }
         int vazias = 0;
         for (ServerLevel level : server.getAllLevels()) {
             try {

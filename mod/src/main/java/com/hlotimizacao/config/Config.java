@@ -12,6 +12,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.EnumMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
@@ -36,6 +37,16 @@ public final class Config {
     private static int lagIntervaloS = 30;
     private static int lagToleranciaS = 30;
     private static Set<String> salvamentoSerializarClasses = Set.of();
+    private static int limpezaIntervaloMin = 10;
+    private static Set<Integer> limpezaAvisosS = Set.of(60, 30, 10, 5);
+    private static int limpezaIdadeMinimaS = 30;
+    private static boolean limpezaProtegerNbt = true;
+    private static boolean limpezaProtegerColetores = true;
+    private static Set<String> limpezaItensProtegidos = Set.of();
+    private static List<String> limpezaDimensoes = List.of();
+    private static int limpezaMaxPorTick = 500;
+    private static final String PROTEGIDOS_PADRAO = "minecraft:nether_star,minecraft:dragon_egg,minecraft:elytra,minecraft:totem_of_undying,"
+            + "minecraft:beacon,minecraft:heart_of_the_sea,minecraft:trident,minecraft:netherite_ingot,minecraft:netherite_block";
     private static boolean carregado = false;
 
     private Config() {
@@ -47,14 +58,7 @@ public final class Config {
         }
         carregado = true;
         Path caminho = pastaConfig().resolve(ARQUIVO);
-        Properties props = new Properties();
-        if (Files.exists(caminho)) {
-            try (Reader reader = Files.newBufferedReader(caminho, StandardCharsets.UTF_8)) {
-                props.load(reader);
-            } catch (IOException e) {
-                LOGGER.error("Nao foi possivel ler {}, usando valores padrao", caminho, e);
-            }
-        }
+        Properties props = lerArquivo(caminho);
 
         boolean faltando = false;
         for (Modulo modulo : Modulo.values()) {
@@ -67,28 +71,84 @@ public final class Config {
             }
             decidir(modulo, valor.trim().toLowerCase());
         }
+        faltando |= lerValores(props);
+        if (faltando) {
+            salvar(caminho, props);
+        }
+    }
+
+    private static Properties lerArquivo(Path caminho) {
+        Properties props = new Properties();
+        if (Files.exists(caminho)) {
+            try (Reader reader = Files.newBufferedReader(caminho, StandardCharsets.UTF_8)) {
+                props.load(reader);
+            } catch (IOException e) {
+                LOGGER.error("Nao foi possivel ler {}, usando valores padrao", caminho, e);
+            }
+        }
+        return props;
+    }
+
+    /**
+     * /hl recarregar: rele os valores que nao precisam reiniciar (limites, listas, intervalos). Ligar e
+     * desligar modulos continua exigindo reiniciar (os mixins sao aplicados na inicializacao).
+     */
+    public static synchronized void recarregarValores() {
+        carregar();
+        lerValores(lerArquivo(pastaConfig().resolve(ARQUIVO)));
+    }
+
+    private static Set<String> lista(Properties props, String chave, String padrao) {
+        return Stream.of(props.getProperty(chave, padrao).split(","))
+                .map(String::trim).filter(c -> !c.isEmpty()).collect(Collectors.toUnmodifiableSet());
+    }
+
+    /** Le os valores; devolve true se alguma chave faltava (e a coloca em props com o valor padrao). */
+    private static boolean lerValores(Properties props) {
+        boolean faltando = false;
         fpsSemFoco = lerInt(props, "fps_sem_foco.limite", 15, 1, 260);
         fpsMinimizado = lerInt(props, "fps_sem_foco.limite_minimizado", 1, 1, 260);
         lagLimiteMs = lerInt(props, "diagnostico_lag.limite_ms", 2000, 100, 600000);
         lagIntervaloS = lerInt(props, "diagnostico_lag.intervalo_s", 30, 1, 3600);
         lagToleranciaS = lerInt(props, "diagnostico_lag.tolerancia_inicio_s", 30, 0, 3600);
-        salvamentoSerializarClasses = Stream.of(props.getProperty("salvamento_assincrono.serializar_classes", "").split(","))
-                .map(String::trim).filter(c -> !c.isEmpty()).collect(Collectors.toUnmodifiableSet());
+        salvamentoSerializarClasses = lista(props, "salvamento_assincrono.serializar_classes", "");
+        limpezaIntervaloMin = lerInt(props, "limpeza_itens.intervalo_min", 10, 1, 1440);
+        Set<Integer> avisos = new java.util.TreeSet<>();
+        for (String aviso : lista(props, "limpeza_itens.avisos_s", "60,30,10,5")) {
+            try {
+                avisos.add(Integer.parseInt(aviso));
+            } catch (NumberFormatException ignorado) {
+                // valor invalido na lista: ignora
+            }
+        }
+        limpezaAvisosS = Set.copyOf(avisos);
+        limpezaIdadeMinimaS = lerInt(props, "limpeza_itens.idade_minima_s", 30, 0, 3600);
+        limpezaProtegerNbt = Boolean.parseBoolean(props.getProperty("limpeza_itens.proteger_itens_com_nbt", "true").trim());
+        limpezaProtegerColetores = Boolean.parseBoolean(props.getProperty("limpeza_itens.proteger_sobre_coletores", "true").trim());
+        limpezaItensProtegidos = lista(props, "limpeza_itens.itens_protegidos", PROTEGIDOS_PADRAO);
+        limpezaDimensoes = List.copyOf(lista(props, "limpeza_itens.dimensoes", ""));
+        limpezaMaxPorTick = lerInt(props, "limpeza_itens.max_por_tick", 500, 10, 100000);
         for (String[] chave : new String[][]{
                 {"fps_sem_foco.limite", Integer.toString(fpsSemFoco)},
                 {"fps_sem_foco.limite_minimizado", Integer.toString(fpsMinimizado)},
                 {"diagnostico_lag.limite_ms", Integer.toString(lagLimiteMs)},
                 {"diagnostico_lag.intervalo_s", Integer.toString(lagIntervaloS)},
                 {"diagnostico_lag.tolerancia_inicio_s", Integer.toString(lagToleranciaS)},
-                {"salvamento_assincrono.serializar_classes", String.join(",", salvamentoSerializarClasses)}}) {
+                {"salvamento_assincrono.serializar_classes", String.join(",", salvamentoSerializarClasses)},
+                {"limpeza_itens.intervalo_min", Integer.toString(limpezaIntervaloMin)},
+                {"limpeza_itens.avisos_s", "60,30,10,5"},
+                {"limpeza_itens.idade_minima_s", Integer.toString(limpezaIdadeMinimaS)},
+                {"limpeza_itens.proteger_itens_com_nbt", "true"},
+                {"limpeza_itens.proteger_sobre_coletores", "true"},
+                {"limpeza_itens.itens_protegidos", PROTEGIDOS_PADRAO},
+                {"limpeza_itens.dimensoes", ""},
+                {"limpeza_itens.max_por_tick", Integer.toString(limpezaMaxPorTick)}}) {
             if (!props.containsKey(chave[0])) {
                 faltando = true;
                 props.setProperty(chave[0], chave[1]);
             }
         }
-        if (faltando) {
-            salvar(caminho, props);
-        }
+        return faltando;
     }
 
     private static void decidir(Modulo modulo, String valor) {
@@ -112,6 +172,10 @@ public final class Config {
         if (modulo == Modulo.CORRECAO_FASTASYNCWORLDSAVE && ativo && !modInstalado("fastasyncworldsave")) {
             ativo = false;
             motivo = "nao necessario: fastasyncworldsave nao esta instalado";
+        }
+        if (modulo == Modulo.CORRECAO_INFINITY_CHEST && ativo && !modInstalado("avaritia")) {
+            ativo = false;
+            motivo = "nao necessario: avaritia (Re-Avaritia) nao esta instalado";
         }
         ATIVOS.put(modulo, ativo);
         MOTIVOS.put(modulo, motivo);
@@ -156,6 +220,38 @@ public final class Config {
     public static Set<String> salvamentoSerializarClasses() {
         carregar();
         return salvamentoSerializarClasses;
+    }
+
+    public static int limpezaIntervaloMin() {
+        return limpezaIntervaloMin;
+    }
+
+    public static Set<Integer> limpezaAvisosS() {
+        return limpezaAvisosS;
+    }
+
+    public static int limpezaIdadeMinimaS() {
+        return limpezaIdadeMinimaS;
+    }
+
+    public static boolean limpezaProtegerNbt() {
+        return limpezaProtegerNbt;
+    }
+
+    public static boolean limpezaProtegerColetores() {
+        return limpezaProtegerColetores;
+    }
+
+    public static Set<String> limpezaItensProtegidos() {
+        return limpezaItensProtegidos;
+    }
+
+    public static List<String> limpezaDimensoes() {
+        return limpezaDimensoes;
+    }
+
+    public static int limpezaMaxPorTick() {
+        return limpezaMaxPorTick;
     }
 
     public static boolean modInstalado(String modId) {
@@ -206,7 +302,15 @@ public final class Config {
         sb.append("# O log mostra quais classes sao essas. Classes listadas aqui (nomes completos, separados por virgula) passam\n");
         sb.append("# a ser serializadas com save(CompoundTag) e gravadas em outra thread, IGNORANDO o save(File) do mod.\n");
         sb.append("# So use se souber que o save(File) da classe apenas chama o do Minecraft (risco de perder dados se fizer mais).\n");
-        sb.append("salvamento_assincrono.serializar_classes=").append(props.getProperty("salvamento_assincrono.serializar_classes")).append('\n');
+        sb.append("salvamento_assincrono.serializar_classes=").append(props.getProperty("salvamento_assincrono.serializar_classes")).append("\n\n");
+        sb.append("# limpeza_itens: a cada intervalo_min minutos apaga os itens soltos no chao, com avisos no chat antes (avisos_s).\n");
+        sb.append("# Nunca apaga: itens com menos de idade_minima_s segundos no chao, drops da morte de jogadores, itens_protegidos,\n");
+        sb.append("# ovos de spawn, shulker boxes, itens encantados/com nome/com conteudo (proteger_itens_com_nbt) e itens sobre\n");
+        sb.append("# funis ou blocos que recebem itens (proteger_sobre_coletores). dimensoes vazio = todas. /hl recarregar rele estes valores.\n");
+        for (String chave : new String[]{"intervalo_min", "avisos_s", "idade_minima_s", "proteger_itens_com_nbt", "proteger_sobre_coletores",
+                "itens_protegidos", "dimensoes", "max_por_tick"}) {
+            sb.append("limpeza_itens.").append(chave).append('=').append(props.getProperty("limpeza_itens." + chave)).append('\n');
+        }
         try {
             Files.createDirectories(caminho.getParent());
             try (Writer writer = Files.newBufferedWriter(caminho, StandardCharsets.UTF_8)) {

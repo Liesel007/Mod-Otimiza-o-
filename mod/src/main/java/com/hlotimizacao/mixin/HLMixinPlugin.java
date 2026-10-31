@@ -16,6 +16,13 @@ public class HLMixinPlugin implements IMixinConfigPlugin {
     @Override
     public void onLoad(String mixinPackage) {
         Config.carregar();
+        if (Config.ativo(Modulo.RELATORIO_CONFLITOS)) {
+            try {
+                org.spongepowered.asm.mixin.Mixins.registerErrorHandlerClass(ErrosMixin.class.getName());
+            } catch (Throwable t) {
+                Config.LOGGER.debug("Nao foi possivel registrar o leitor de erros de mixin", t);
+            }
+        }
         for (Modulo modulo : Modulo.values()) {
             Config.LOGGER.info("Modulo {}: {}", modulo.chave, Config.motivo(modulo));
         }

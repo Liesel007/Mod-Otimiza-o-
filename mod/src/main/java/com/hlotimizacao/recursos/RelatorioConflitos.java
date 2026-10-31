@@ -46,6 +46,7 @@ public final class RelatorioConflitos {
                     + "deste mod trata esse caso (remova o Fast Async World Save para ele ligar sozinho).");
             avisos++;
         }
+        avisos += DiagnosticoAmbiente.verificar();
         Config.LOGGER.info("Relatorio de conflitos: {} aviso(s). Mais informacoes: {}", avisos, Config.URL_PROJETO);
     }
 }

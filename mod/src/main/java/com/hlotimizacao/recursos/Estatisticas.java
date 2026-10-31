@@ -50,6 +50,16 @@ public final class Estatisticas {
                     SALVAMENTO_CLASSES_SINCRONAS.isEmpty() ? "" : ": " + String.join(", ", SALVAMENTO_CLASSES_SINCRONAS),
                     SALVAMENTO_FALHAS.get()));
         }
+        if (Config.ativo(Modulo.CORRECAO_INFINITY_CHEST)) {
+            linhas.add(String.format("correcao_infinity_chest: %d bau(s) corrigido(s) ao carregar, %d chave(s) consertada(s), %d entrada(s) duplicada(s) somada(s)",
+                    ChavesInfinityChest.BAUS_CORRIGIDOS.get(), ChavesInfinityChest.CHAVES_CORRIGIDAS.get(), ChavesInfinityChest.ENTRADAS_MESCLADAS.get()));
+        }
+        if (Config.ativo(Modulo.LIMPEZA_ITENS)) {
+            linhas.add(String.format("limpeza_itens: %d limpeza(s), %d item(ns) removido(s)", LimpezaItens.LIMPEZAS.get(), LimpezaItens.ITENS_REMOVIDOS.get()));
+        }
+        if (DiagnosticoAmbiente.arquivosLentos() > 0) {
+            linhas.add(String.format("arquivos que demoraram mais de 500 ms para abrir ao gravar: %d (antivirus?)", DiagnosticoAmbiente.arquivosLentos()));
+        }
         if (Config.ativo(Modulo.DIAGNOSTICO_LAG)) {
             linhas.add(String.format("diagnostico_lag: %d travamento(s) registrado(s)", LAG_REGISTROS.get()));
         }

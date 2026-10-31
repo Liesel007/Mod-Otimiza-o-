@@ -34,6 +34,13 @@ public enum Modulo {
     CORRECAO_FASTASYNCWORLDSAVE("correcao_fastasyncworldsave", null,
             "Correcao para o Fast Async World Save: espera as gravacoes pendentes ao fechar o mundo.",
             List.of()),
+    CORRECAO_INFINITY_CHEST("correcao_infinity_chest", "mixin.avaritia",
+            "Correcao para o Infinity Chest do Re-Avaritia: chaves de itens com NBT que crescem sem parar (travamentos ao abrir o bau), "
+                    + "NBT perdido ao tirar parte de uma pilha e lista de itens reconstruida a cada item novo.",
+            List.of()),
+    LIMPEZA_ITENS("limpeza_itens", null,
+            "Apaga de tempos em tempos os itens soltos no chao, com avisos no chat antes e protecao para itens valiosos, recentes e de morte.",
+            List.of("clearlag", "clearlagg", "itemclearer", "clear_lag")),
     RELATORIO_CONFLITOS("relatorio_conflitos", null,
             "Mostra no log conflitos conhecidos entre mods de otimizacao instalados.",
             List.of());

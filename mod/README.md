@@ -5,7 +5,7 @@ Mod de otimização feito a partir do estudo do código dos mods do modpack HL
 **código próprio** (sem copiar código dos outros mods, que têm licenças diferentes) e **corrige erros**
 encontrados neles.
 
-**Jar pronto:** [`releases/hlotimizacao-0.1.3.jar`](../releases/hlotimizacao-0.1.3.jar). Basta colocá-lo
+**Jar pronto:** [`releases/hlotimizacao-0.1.4.jar`](../releases/hlotimizacao-0.1.4.jar). Basta colocá-lo
 na pasta `mods` da instância.
 
 ## Como ele convive com os mods do pack
@@ -32,6 +32,8 @@ O log mostra, na inicialização, o estado de cada módulo e o motivo
 | `toasts_vazios` | BadOptimizations | `badoptimizations` | cliente |
 | `correcao_fastasyncworldsave` | (correção) | só liga se `fastasyncworldsave` estiver instalado | servidor |
 | `relatorio_conflitos` | (diagnóstico) | — | servidor e cliente |
+| `correcao_infinity_chest` | (correção) | só liga se o `avaritia` (Re-Avaritia) estiver instalado | servidor e cliente |
+| `limpeza_itens` | ClearLag | `clearlag`, `clearlagg`, `itemclearer`, `clear_lag` | servidor |
 | `tooltip_seguro` | (correção) | — | cliente |
 | `diagnostico_lag` | (diagnóstico) | — | servidor |
 
@@ -76,6 +78,18 @@ o log avisa **uma vez por item**, com o id do item e a origem:
 Também detecta travamentos **entre** ticks (tarefas de chunk executadas enquanto o servidor espera o próximo tick).
 Ignora o jogo pausado no singleplayer. No máximo 1 registro a cada `diagnostico_lag.intervalo_s` (padrão 30).
 
+## Comando `/hl` (0.1.4)
+
+`/hlotimizacao` continua funcionando como apelido. Se outro mod já usar `/hl`, fica só `/hlotimizacao` e o log avisa.
+
+| Comando | Quem pode | O que faz |
+|---|---|---|
+| `/hl status` | todos | MSPT médio e pico dos últimos 100 ticks, módulos ligados e o que cada um fez |
+| `/hl recarregar` | operador | relê da config os limites, listas e intervalos (ligar/desligar módulo exige reiniciar) |
+| `/hl limpar` | operador | limpa os itens do chão daqui a 10 s (`limpeza_itens`) |
+| `/hl limpar cancelar` | operador | pula a próxima limpeza |
+| `/hl limpar status` | operador | tempo até a próxima limpeza e quantos itens há no chão |
+
 ## Comando e resumo (0.1.3)
 
 - `/hlotimizacao status` mostra o que cada módulo fez desde que o jogo abriu (mobs liberados e itens devolvidos
@@ -102,6 +116,73 @@ Teste de antes e depois com números: [`docs/benchmark.md`](../docs/benchmark.md
   e o funcionamento junto com o pack HL completo. Teste num mundo de cópia antes de usar no mundo principal.
 
 ## Histórico de versões
+
+### 0.1.4
+Feita a partir do documento de ideias para a 0.1.4 (log de 31/10 e save "New World").
+
+**Novo módulo `correcao_infinity_chest`** (Re-Avaritia 1.4.2; liga sozinho só se ele estiver instalado).
+Li o código do Re-Avaritia 1.4.2 (MIT, `Nova-Committee/Re-Avaritia`, tag `v1.4.2-release-forge`) e
+conferi com o jar do Modrinth. Causa das chaves `id#hash#hash#...`: `StorageUtils.getItem(chave)` grava a
+chave inteira no cache item → id; depois `getItemId(item)` devolve `id#hash` e `getNbtItemId` acrescenta
+outro `#hash`. Cada leitura do baú pode fazer a chave crescer de novo, o mesmo item vira várias entradas e o
+estado enviado ao abrir o baú cresce sem limite (o travamento de 89,9 s em `S2CInfinityChestStatePack.write`).
+O bug depende da ordem em que o cache é preenchido, por isso aparece em uns baús e em outros não. Correções:
+- caches próprios e thread-safe para item ↔ id (o original usa `HashMap` comum, acessado pelas threads do
+  cliente e do servidor ao mesmo tempo no singleplayer);
+- ao carregar o mundo, cada chave é refeita como `id#hash(NBT)` a partir do id puro; entradas que ficam
+  iguais são somadas; itens sem NBT guardados com `#hash` voltam para a chave `id`. Antes, uma cópia
+  `<arquivo>.dat.hlbak` do original (só na primeira vez) e uma linha no log por baú corrigido;
+- **outro bug encontrado:** ao tirar só parte de uma pilha de itens com NBT, o `takeItem`/`saveTakeItem`
+  apagava o NBT guardado, e o resto da pilha saía depois **sem** NBT (nome, encantamentos). Agora o NBT só
+  é apagado quando a entrada inteira sai;
+- a lista de itens do baú é reconstruída só quando é lida depois de mudar, e não a cada item novo.
+- Não feito: enviar o estado do baú em páginas (item 5 do documento, mais arriscado).
+
+**Novo módulo `limpeza_itens`** (ligado em `auto`; desliga se outro mod de limpeza estiver instalado):
+a cada `limpeza_itens.intervalo_min` (10) minutos apaga os itens soltos no chão, com avisos no chat aos
+60, 30, 10 e 5 s. Nunca apaga: itens com menos de `idade_minima_s` (30) s no chão, drops da morte de
+jogadores (marcados no `LivingDropsEvent`; o Corpse usa entidade própria e não é afetado), a lista
+`itens_protegidos`, ovos de spawn, shulker boxes, itens encantados, com nome ou com conteúdo, e itens sobre
+funis ou blocos que recebem itens. Remove no máximo `max_por_tick` (500) por tick, com `discard()`.
+Não feito: proteção de áreas do FTB Chunks.
+
+**`relatorio_conflitos`, novos detectores:**
+- mixins de qualquer mod que falharam ao aplicar, com explicação e, quando conhecida, a correção (ex.:
+  Better Chunk Loading × Canary → `mixin.world.chunk_access=false` em `config/canary.properties`);
+- arquivo feito para uma versão **mais nova** que a 1.20.1 (ex.: `ImmediatelyFast-Forge-1.5.5+1.20.4`) vira
+  aviso mesmo quando o mod aceita carregar; versões mais antigas que declaram aceitar a 1.20.1 continuam
+  como informação;
+- argumentos da JVM (`-Xms` muito menor que `-Xmx`, nenhuma opção de GC) e Java 17 anterior ao 17.0.12;
+- antivírus: abrir arquivos para gravar levando mais de 500 ms três vezes (medido no `salvamento_assincrono`
+  e nas amostras do `diagnostico_lag`).
+
+**`diagnostico_lag`:** linha `Tipo:` quando as amostras estão abrindo arquivos (disco/antivírus) ou
+carregando classes (acontece uma vez, normalmente logo depois de entrar no mundo).
+
+**Comando `/hl`** (tabela acima), com `/hl status` mostrando MSPT médio e pico.
+
+Testes (servidor dedicado com o Re-Avaritia 1.4.2 do Modrinth, mundo novo em cada modo):
+
+| Teste | Módulo desligado (Re-Avaritia original) | Módulo ligado |
+|---|---|---|
+| mesmo papel com nome colocado 20 vezes no baú | 20 entradas, chave com até 355 caracteres | 2 entradas (com nome e sem nome) |
+| papel sem nome colocado depois | guardado com chave `#hash` errada | chave `minecraft:paper` |
+| tirar 3 de 10 papéis com nome, depois o resto | o resto sai sem o nome | o resto mantém o nome |
+| baú sintético: 600 entradas (100 itens com chave inflada 3 vezes) | 600 entradas, pacote de 112 KB, 10,7 ms para montar | 400 entradas, pacote de 41 KB, 2,0 ms; `.hlbak` criado |
+
+- `limpeza_itens`: 5.000 itens em 100 chunks (com 100 de cada tipo protegido) e 20 recém-largados:
+  4.161 pilhas comuns apagadas (38.217 itens) em 33 ms no total, espalhados em 10 ticks (máximo de 8,1 ms
+  num tick); sobraram todos os encantados, com nome, nether stars, drops de morte e recém-largados. Avisos de
+  10 e 5 s, `/hl limpar cancelar` e `/hl limpar status` conferidos.
+- Detector de mixins: um mixin de teste que falha de propósito foi listado com o motivo. Detector de JVM
+  conferido (o ambiente de teste não tem `-Xms` nem opções de GC). Java antigo: não aparece aqui (o
+  ambiente tem Java 17 recente).
+- `/hl status`, `/hl recarregar` e `/hlotimizacao status` conferidos.
+- Não testado aqui: o baú real do seu save (não tenho o arquivo), o jogo com cliente e o detector de
+  antivírus com um antivírus de verdade (o ambiente é Linux).
+- Observação do teste: drops de morte que se juntam com itens comuns do mesmo tipo podem perder a marca
+  (16 de 100 no teste, ao se fundirem com pedregulho ao lado). Drops de morte reais caem juntos, então isso
+  deve ser raro.
 
 ### 0.1.3
 Feita a partir do relatório do `latest.log` de uma sessão de 1h18 com ~440 mods.
