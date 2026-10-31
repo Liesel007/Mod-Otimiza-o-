@@ -54,6 +54,14 @@ minecraft {
 
         client {
             property 'forge.enabledGameTestNamespaces', mod_id
+            // Testes da tela: HLBENCH_MUNDO=<pasta em run/saves> entra direto no mundo; HLBENCH_TAMANHO=LxA define a janela.
+            if (System.getenv('HLBENCH_MUNDO')) {
+                args '--quickPlaySingleplayer', System.getenv('HLBENCH_MUNDO')
+            }
+            if (System.getenv('HLBENCH_TAMANHO')) {
+                def (l, a) = System.getenv('HLBENCH_TAMANHO').tokenize('x')
+                args '--width', l, '--height', a
+            }
         }
 
         server {

@@ -33,6 +33,17 @@ public final class Desempenho {
     private static volatile LocalTime ultimoSalvamentoHora;
     private static volatile long sessaoDesdeMs = -1;
 
+    /** Historico para o grafico da tela: MSPT medio de cada segundo, nos ultimos 5 minutos. */
+    public static final int SEGUNDOS_HISTORICO = 300;
+    private static final float[] HISTORICO_MSPT = new float[SEGUNDOS_HISTORICO];
+    private static final boolean[] HISTORICO_SALVOU = new boolean[SEGUNDOS_HISTORICO];
+    private static int historicoIndice;
+    private static int historicoPreenchido;
+    private static long segundoAtual = -1;
+    private static long somaSegundoNs;
+    private static int ticksSegundo;
+    private static boolean salvouSegundo;
+
     private static final AtomicInteger PAUSAS_GC_LONGAS = new AtomicInteger();
     private static volatile long maiorPausaGcMs;
     private static boolean gcRegistrado;
@@ -69,6 +80,11 @@ public final class Desempenho {
 
     public static void aoIniciarServidor() {
         sessaoDesdeMs = System.currentTimeMillis();
+        synchronized (HISTORICO_MSPT) {
+            historicoPreenchido = 0;
+            historicoIndice = 0;
+            segundoAtual = -1;
+        }
         synchronized (DURACAO_NS) {
             preenchidos = 0;
             indice = 0;
@@ -100,6 +116,50 @@ public final class Desempenho {
         if (salvouNesteTick) {
             ultimoSalvamentoMs = duracao / 1_000_000;
             ultimoSalvamentoHora = LocalTime.now();
+        }
+        long segundo = System.currentTimeMillis() / 1000;
+        synchronized (HISTORICO_MSPT) {
+            if (segundo != segundoAtual) {
+                if (segundoAtual >= 0 && ticksSegundo > 0) {
+                    // Segundos sem nenhum tick (travamento longo) ficam com o valor do tick que terminou depois.
+                    long pulados = Math.min(SEGUNDOS_HISTORICO, segundo - segundoAtual) - 1;
+                    float media = (float) (somaSegundoNs / 1e6 / ticksSegundo);
+                    gravarSegundo(media, salvouSegundo);
+                    for (long i = 0; i < pulados; i++) {
+                        gravarSegundo(media, salvouSegundo);
+                    }
+                }
+                segundoAtual = segundo;
+                somaSegundoNs = 0;
+                ticksSegundo = 0;
+                salvouSegundo = false;
+            }
+            somaSegundoNs += duracao;
+            ticksSegundo++;
+            salvouSegundo |= salvouNesteTick;
+        }
+    }
+
+    private static void gravarSegundo(float mspt, boolean salvou) {
+        HISTORICO_MSPT[historicoIndice] = mspt;
+        HISTORICO_SALVOU[historicoIndice] = salvou;
+        historicoIndice = (historicoIndice + 1) % SEGUNDOS_HISTORICO;
+        historicoPreenchido = Math.min(SEGUNDOS_HISTORICO, historicoPreenchido + 1);
+    }
+
+    /** MSPT de cada segundo, do mais antigo para o mais recente; salvou[i] = houve salvamento naquele segundo. */
+    public static float[] historicoMspt(boolean[] salvouSaida) {
+        synchronized (HISTORICO_MSPT) {
+            float[] valores = new float[historicoPreenchido];
+            int inicio = (historicoIndice - historicoPreenchido + SEGUNDOS_HISTORICO) % SEGUNDOS_HISTORICO;
+            for (int i = 0; i < historicoPreenchido; i++) {
+                int j = (inicio + i) % SEGUNDOS_HISTORICO;
+                valores[i] = HISTORICO_MSPT[j];
+                if (salvouSaida != null && i < salvouSaida.length) {
+                    salvouSaida[i] = HISTORICO_SALVOU[j];
+                }
+            }
+            return valores;
         }
     }
 

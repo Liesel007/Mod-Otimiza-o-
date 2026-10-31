@@ -35,6 +35,7 @@ public final class LimpezaItens {
 
     public static final AtomicLong LIMPEZAS = new AtomicLong();
     public static final AtomicLong ITENS_REMOVIDOS = new AtomicLong();
+    public static final AtomicLong PROTEGIDOS = new AtomicLong();
 
     /**
      * Horario (relogio real) da proxima limpeza, ou -1. Em tempo real, e nao em ticks: com o servidor
@@ -165,6 +166,7 @@ public final class LimpezaItens {
             String motivo = motivoProtecao(item);
             if (motivo != null) {
                 protegidosNestaLimpeza++;
+                PROTEGIDOS.incrementAndGet();
                 MOTIVOS.merge(motivo.startsWith("recente") ? "recente" : motivo, 1, Integer::sum);
                 if (Config.LOGGER.isDebugEnabled() && protegidosNestaLimpeza <= 5) {
                     Config.LOGGER.debug("[limpeza_itens] protegido: {} em {} ({})", item.getItem(), item.blockPosition(), motivo);

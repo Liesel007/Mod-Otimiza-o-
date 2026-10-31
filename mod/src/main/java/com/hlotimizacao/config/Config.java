@@ -33,6 +33,27 @@ public final class Config {
     private static final Map<Modulo, String> MOTIVOS = new EnumMap<>(Modulo.class);
     private static final Map<Modulo, String> MOTIVOS_CURTOS = new EnumMap<>(Modulo.class);
     private static final Map<Modulo, String> VALORES = new EnumMap<>(Modulo.class);
+    /** Valores de modulo mudados pela tela nesta sessao (valem depois de reiniciar). */
+    private static final Map<Modulo, String> PENDENTES = new EnumMap<>(Modulo.class);
+
+    /** Chaves que a tela pode editar (relidas sem reiniciar) e a descricao de cada uma. */
+    public static final Map<String, String> EDITAVEIS = new java.util.LinkedHashMap<>();
+
+    static {
+        EDITAVEIS.put("limpeza_itens.intervalo_min", "Minutos entre as limpezas de itens (1 a 1440)");
+        EDITAVEIS.put("limpeza_itens.avisos_s", "Segundos antes da limpeza em que o chat avisa (ex.: 60,30,10,5)");
+        EDITAVEIS.put("limpeza_itens.idade_minima_s", "Itens no chao ha menos que isso nunca sao apagados (segundos)");
+        EDITAVEIS.put("limpeza_itens.proteger_itens_com_nbt", "Nao apagar itens encantados, com nome ou com conteudo (true/false)");
+        EDITAVEIS.put("limpeza_itens.proteger_sobre_coletores", "Nao apagar itens sobre funis ou coletores (true/false)");
+        EDITAVEIS.put("limpeza_itens.itens_protegidos", "Itens que nunca sao apagados (ids separados por virgula)");
+        EDITAVEIS.put("limpeza_itens.dimensoes", "Dimensoes limpas (vazio = todas)");
+        EDITAVEIS.put("limpeza_itens.max_por_tick", "Itens removidos por tick durante a limpeza (10 a 100000)");
+        EDITAVEIS.put("diagnostico_lag.limite_ms", "Tick a partir do qual o diagnostico registra um travamento (ms)");
+        EDITAVEIS.put("diagnostico_lag.intervalo_s", "Intervalo minimo entre dois registros de lag (s)");
+        EDITAVEIS.put("diagnostico_lag.tolerancia_inicio_s", "Segundos sem registrar depois de abrir o mundo");
+        EDITAVEIS.put("diagnostico_lag.ignorar_mixins", "Mixins que so repassam a chamada (mod:metodo, separados por virgula)");
+        EDITAVEIS.put("salvamento_assincrono.serializar_classes", "Classes com save(File) proprio gravadas em outra thread (cuidado)");
+    }
     private static int fpsSemFoco = 15;
     private static int fpsMinimizado = 1;
     private static int lagLimiteMs = 2000;
@@ -208,6 +229,62 @@ public final class Config {
     public static String motivoCurto(Modulo modulo) {
         carregar();
         return MOTIVOS_CURTOS.getOrDefault(modulo, "");
+    }
+
+    /** Valor configurado (inclui mudancas feitas pela tela nesta sessao, que valem depois de reiniciar). */
+    public static String valorConfigurado(Modulo modulo) {
+        carregar();
+        return PENDENTES.getOrDefault(modulo, VALORES.getOrDefault(modulo, "auto"));
+    }
+
+    public static boolean temMudancaPendente() {
+        return PENDENTES.entrySet().stream().anyMatch(e -> !e.getValue().equals(VALORES.getOrDefault(e.getKey(), "auto")));
+    }
+
+    /** Valor atual de uma chave editavel, como esta no arquivo. */
+    public static synchronized String valorTexto(String chave) {
+        return lerArquivo(pastaConfig().resolve(ARQUIVO)).getProperty(chave, "");
+    }
+
+    /**
+     * Grava uma chave no arquivo (pela tela). Modulos: so valem depois de reiniciar. Chaves editaveis:
+     * relidas na hora. Devolve null se deu certo ou a mensagem de erro.
+     */
+    public static synchronized String gravarValor(String chave, String valor) {
+        String v = valor == null ? "" : valor.trim();
+        Modulo modulo = null;
+        if (chave.startsWith("modulo.")) {
+            for (Modulo m : Modulo.values()) {
+                if (chave.equals("modulo." + m.chave)) {
+                    modulo = m;
+                }
+            }
+            if (modulo == null || !(v.equals("auto") || v.equals("on") || v.equals("off"))) {
+                return "valor invalido para " + chave;
+            }
+        } else if (!EDITAVEIS.containsKey(chave)) {
+            return "chave nao editavel: " + chave;
+        } else if (chave.endsWith("_min") || chave.endsWith("_s") && !chave.endsWith("avisos_s") || chave.endsWith("_ms") || chave.endsWith("max_por_tick")) {
+            try {
+                Integer.parseInt(v);
+            } catch (NumberFormatException e) {
+                return chave + " precisa ser um numero";
+            }
+        } else if (chave.startsWith("limpeza_itens.proteger") && !(v.equals("true") || v.equals("false"))) {
+            return chave + " precisa ser true ou false";
+        }
+        Path caminho = pastaConfig().resolve(ARQUIVO);
+        Properties props = lerArquivo(caminho);
+        props.setProperty(chave, v);
+        lerValores(props); // completa as chaves que faltarem
+        salvar(caminho, props);
+        if (modulo != null) {
+            PENDENTES.put(modulo, v);
+        } else {
+            lerValores(props);
+        }
+        LOGGER.info("Configuracao alterada pela tela: {}={}", chave, v);
+        return null;
     }
 
     /** Valor escrito na config (auto, on, off). */

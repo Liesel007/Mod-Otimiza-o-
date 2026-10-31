@@ -356,7 +356,7 @@ public final class DiagnosticoLag {
     public static final String SEM_MOD = "Minecraft/Forge (nenhum mod no topo da pilha)";
 
     /** Um travamento registrado, para o /hl status lag. */
-    public record Registro(java.time.LocalTime hora, long duracaoMs, String tipo, String mod, String frame) {
+    public record Registro(java.time.LocalTime hora, long duracaoMs, String tipo, String mod, String frame, String pilha, String dimensoes) {
     }
 
     private static final int MAX_HISTORICO = 20;
@@ -457,7 +457,9 @@ public final class DiagnosticoLag {
         String metodo = f.getMethodName();
         if (metodo.indexOf('$') > 0) {
             String[] partes = metodo.split("\\$");
-            metodo = partes[partes.length - 1];
+            if (partes.length >= 4 && ehPrefixoMixin(partes[0])) {
+                metodo = partes[partes.length - 1]; // handler$abc000$mod$metodo -> metodo
+            }
         }
         return classe.substring(classe.lastIndexOf('.') + 1) + "." + metodo;
     }
@@ -540,6 +542,24 @@ public final class DiagnosticoLag {
             }
         }
         return new Causa(SEM_MOD, nomeCurto(pilha[0]));
+    }
+
+    /** Os primeiros frames de uma amostra, com os de mod marcados com "*" (para o detalhe na tela). */
+    static String resumirPilha(StackTraceElement[] pilha) {
+        StringBuilder sb = new StringBuilder();
+        int limite = Math.min(pilha.length, 25);
+        for (int i = 0; i < limite; i++) {
+            String mod = modDoFrame(pilha[i]);
+            sb.append(mod != null ? "* " : "  ").append(nomeCurto(pilha[i]));
+            if (mod != null) {
+                sb.append("  [").append(mod).append(']');
+            }
+            sb.append('\n');
+        }
+        if (pilha.length > limite) {
+            sb.append("  ... mais ").append(pilha.length - limite).append(" frames\n");
+        }
+        return sb.toString();
     }
 
     /** Conta as amostras por causa (mod ou padrao de espera); exemplo = o detalhe de cada uma. */
@@ -652,9 +672,8 @@ public final class DiagnosticoLag {
         Map<String, Integer> porMod = contarPorMod(amostras, exemplos);
         exemplos.forEach(FRAME_POR_MOD::putIfAbsent);
         String principal = porMod.entrySet().stream().max(Map.Entry.comparingByValue()).map(Map.Entry::getKey).orElse(SEM_MOD);
-        guardar(new Registro(java.time.LocalTime.now(), duracao,
-                        t.salvando ? "salvamento" : t.onde.texto, principal, exemplos.getOrDefault(principal, "?")),
-                porMod, amostras.size());
+        String pilhaResumida = amostras.isEmpty() ? "(sem amostras)" : resumirPilha(amostras.get(0));
+        int inicioDimensoes = sb.length();
         String tipo = tipo(amostras);
         if (tipo != null) {
             sb.append("  Tipo: ").append(tipo).append('\n');
@@ -672,6 +691,11 @@ public final class DiagnosticoLag {
         if (vazias > 0) {
             sb.append(String.format("  +%d dimensao(oes) vazia(s) (sem jogadores, chunks ou entidades)%n", vazias));
         }
+        String dimensoesTexto = sb.substring(inicioDimensoes).stripTrailing();
+        guardar(new Registro(java.time.LocalTime.now(), duracao,
+                        t.salvando ? "salvamento" : t.onde.texto, principal, exemplos.getOrDefault(principal, "?"),
+                        pilhaResumida, dimensoesTexto.length() > 1500 ? dimensoesTexto.substring(0, 1500) + "..." : dimensoesTexto),
+                porMod, amostras.size());
         Config.LOGGER.warn(sb.toString().stripTrailing());
     }
 

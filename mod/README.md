@@ -5,7 +5,7 @@ Mod de otimização feito a partir do estudo do código dos mods do modpack HL
 **código próprio** (sem copiar código dos outros mods, que têm licenças diferentes) e **corrige erros**
 encontrados neles.
 
-**Jar pronto:** [`releases/hlotimizacao-0.1.6.jar`](../releases/hlotimizacao-0.1.6.jar). Basta colocá-lo
+**Jar pronto:** [`releases/hlotimizacao-0.2.0.jar`](../releases/hlotimizacao-0.2.0.jar). Basta colocá-lo
 na pasta `mods` da instância.
 
 ## Como ele convive com os mods do pack
@@ -78,6 +78,26 @@ o log avisa **uma vez por item**, com o id do item e a origem:
 Também detecta travamentos **entre** ticks (tarefas de chunk executadas enquanto o servidor espera o próximo tick).
 Ignora o jogo pausado no singleplayer. No máximo 1 registro a cada `diagnostico_lag.intervalo_s` (padrão 30).
 
+## Painel (0.2.0)
+
+`/hl` no chat ou a tecla **F8** (configurável em Controles → "HL Otimização") abrem uma tela com abas. Ela não
+pausa o jogo, então os números continuam se mexendo. Capturas em 1366×768: [`docs/tela/`](../docs/tela/).
+
+| Aba | O que mostra |
+|---|---|
+| Visão geral | TPS, MSPT e RAM em barras coloridas, sessão, módulos, próxima limpeza, lag e avisos (cada linha leva à aba) |
+| Módulos | um por linha, com estado e motivo; detalhes ao passar o mouse; botão `[AUTO/ON/OFF]` (vale depois de reiniciar) |
+| Desempenho | gráfico do MSPT dos últimos 5 minutos (azul = salvamento), último salvamento, GC, memória, dimensões, Java |
+| Lag | travamentos da sessão, principais causas e os últimos 20; `[ver]` abre a pilha resumida e as dimensões, com **Copiar** |
+| Limpeza | tempo até a próxima, itens por dimensão, `[Limpar agora]` (com confirmação), `[Cancelar próxima]`, `[Ir até lá]` |
+| Avisos | todos os avisos, com `[como resolver]` |
+| Config | os valores que valem sem reiniciar, editáveis, com **Salvar e recarregar** |
+
+- As ações (limpar, cancelar, ir até lá, mudar módulo ou config) são conferidas **no servidor**: operador (nível 2)
+  ou o dono do mundo no singleplayer. Para os outros, os botões aparecem cinza e a config fica só para leitura.
+- Sem o mod no cliente (servidor com cliente vanilla) e no console, `/hl` mostra a visão geral em texto, como antes.
+- Os dados chegam do servidor a cada 1 s, só da aba aberta e só enquanto a tela está aberta.
+
 ## Comando `/hl` (0.1.4)
 
 `/hlotimizacao` continua funcionando como apelido. Se outro mod já usar `/hl`, fica só `/hlotimizacao` e o log avisa.
@@ -120,6 +140,30 @@ Teste de antes e depois com números: [`docs/benchmark.md`](../docs/benchmark.md
   e o funcionamento junto com o pack HL completo. Teste num mundo de cópia antes de usar no mundo principal.
 
 ## Histórico de versões
+
+### 0.2.0
+**Painel gráfico do `/hl`** (seção acima), feito nas quatro etapas do documento (0.2.0-a a d).
+- Rede: canal `hlotimizacao:painel` (versão 1; cliente ou servidor sem o mod continuam aceitos). O cliente pede
+  para abrir (F8) e se inscreve na aba visível; o servidor manda um `DadosPainel` (só números e textos curtos) a
+  cada 1 s. Sem sinal do cliente por 5 s, para de mandar. Toda ação é conferida no servidor.
+- `ColetorStatus` monta os dados com as mesmas funções e contadores do `/hl status` no chat, para os números não
+  divergirem.
+- Histórico do MSPT: 1 valor por segundo durante 5 minutos, marcando os segundos com salvamento.
+- `diagnostico_lag` guarda, para cada travamento, a pilha resumida (frames de mod marcados) e o estado das
+  dimensões, para o `[ver]` da aba Lag.
+- Textos da tela em `assets/hlotimizacao/lang/pt_br.json` e `en_us.json`.
+
+Testes:
+- Servidor dedicado (`/hlbench rede`): pacote de cada aba entre 77 bytes e 2,6 KB; nos valores-limite
+  (300 pontos de MSPT, 20 travamentos e 15 avisos com textos longos, listas vazias) o maior ficou em 7,4 KB (alvo:
+  8 KB); ida e volta conferida. **Pacotes forjados** de um jogador sem permissão (limpar, cancelar, recarregar, ir
+  até lá, módulo, config): os 6 recusados, config intacta. Como operador: gravação aceita, valor inválido e chave
+  fora da lista recusados. `/hl` no console mostra o texto.
+- Cliente de verdade numa tela virtual (render por software), entrando direto num mundo: a tela abriu pelo mesmo
+  caminho da tecla F8, as 7 abas e o detalhe de um travamento foram desenhados e fotografados em **1366×768**,
+  **1920×1080** e **854×480** (nesta, o conteúdo rola). Ao fechar a tela, 0 pacotes nos 7 s seguintes.
+- Não testado aqui: o aperto real da tecla F8 (o teste chama a mesma função), um servidor dedicado com um cliente
+  vanilla de verdade (o caminho do texto foi testado pelo console) e mouse/teclado de uma pessoa nas abas.
 
 ### 0.1.6
 Duas correções feitas a partir do `latest.log` de 31/10 (08:47–09:01).

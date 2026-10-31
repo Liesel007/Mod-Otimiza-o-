@@ -49,6 +49,9 @@ public class HLBench {
         if (FMLEnvironment.dist == Dist.CLIENT) {
             MinecraftForge.EVENT_BUS.addListener(FpsCliente::aoTick);
             TesteTooltip.registrarOuvintes();
+            if (System.getenv("HLBENCH_TELA") != null) {
+                MinecraftForge.EVENT_BUS.addListener(TesteTela::aoTick);
+            }
         }
     }
 
@@ -80,6 +83,7 @@ public class HLBench {
                 .then(Commands.literal("permitido").executes(c -> seguro(c, TesteLag013::conferirPermitido)))
                 .then(Commands.literal("painel").executes(c -> seguro(c, TestePainel::verificar)))
                 .then(Commands.literal("causas").executes(c -> seguro(c, TesteCausas::verificar)))
+                .then(Commands.literal("rede").executes(c -> seguro(c, TesteRede::verificar)))
                 .then(Commands.literal("itens")
                         .then(Commands.literal("espalhar").then(Commands.argument("n", IntegerArgumentType.integer(1))
                                 .then(Commands.argument("chunks_lado", IntegerArgumentType.integer(1, 30))
@@ -250,6 +254,10 @@ public class HLBench {
             LOGGER.error("HLBENCH erro no comando", t);
             return 0;
         }
+    }
+
+    static net.minecraft.server.level.ServerPlayer jogadorDeTeste(ServerLevel level, String nome) {
+        return novoJogador(level, nome);
     }
 
     private static net.minecraft.server.level.ServerPlayer novoJogador(ServerLevel level, String nome) {

@@ -81,16 +81,16 @@ public final class PainelStatus {
         return Component.literal(console ? "=".repeat(40) : "━".repeat(30)).withStyle(ChatFormatting.GOLD);
     }
 
-    static String num(long n) {
+    public static String num(long n) {
         return String.format(PT, "%,d", n);
     }
 
-    static String dec(double v) {
+    public static String dec(double v) {
         return String.format(PT, "%.1f", v);
     }
 
     /** 1h 27min, 6min 12s, 45s. */
-    static String tempo(long ms) {
+    public static String tempo(long ms) {
         long s = Math.max(0, ms / 1000);
         if (s >= 3600) {
             return String.format(PT, "%dh %02dmin", s / 3600, (s % 3600) / 60);
@@ -102,7 +102,7 @@ public final class PainelStatus {
     }
 
     /** 3,8 s ou 812 ms. */
-    static String duracao(long ms) {
+    public static String duracao(long ms) {
         return ms >= 1000 ? dec(ms / 1000.0) + " s" : ms + " ms";
     }
 
@@ -248,7 +248,7 @@ public final class PainelStatus {
     }
 
     /** "avaritia 41%" pelo tempo de travamento atribuido a cada mod na sessao. */
-    private static String maisCulpado() {
+    public static String maisCulpado() {
         long total = DiagnosticoLag.msTotal();
         if (total <= 0) {
             return null;
@@ -261,17 +261,26 @@ public final class PainelStatus {
     }
 
     private int contarAvisos() {
-        int n = Avisos.quantidade();
+        return todosOsAvisos().size();
+    }
+
+    /** Avisos da inicializacao mais os que aparecem durante o jogo; usado pelo chat e pela tela. */
+    public static List<Avisos.Aviso> todosOsAvisos() {
+        List<Avisos.Aviso> lista = new ArrayList<>(Avisos.todos());
         if (!Estatisticas.SALVAMENTO_CLASSES_SINCRONAS.isEmpty()) {
-            n++;
+            lista.add(new Avisos.Aviso(Estatisticas.SALVAMENTO_CLASSES_SINCRONAS.size() + " classe(s) gravando no thread principal",
+                    "Estes dados têm save(File) próprio e são gravados do jeito do mod, no thread principal: "
+                            + String.join(", ", Estatisticas.SALVAMENTO_CLASSES_SINCRONAS)
+                            + "\nSe o save(File) da classe só chama o do Minecraft, ela pode ir para salvamento_assincrono.serializar_classes."));
         }
         if (DiagnosticoAmbiente.arquivosLentos() > 0) {
-            n++;
+            lista.add(new Avisos.Aviso(DiagnosticoAmbiente.arquivosLentos() + " arquivo(s) demoraram > 500 ms para abrir", DiagnosticoAmbiente.DICA_ANTIVIRUS));
         }
         if (Desempenho.pausasGcLongas() > 0) {
-            n++;
+            lista.add(new Avisos.Aviso(Desempenho.pausasGcLongas() + " pausa(s) da coleta de lixo > 500 ms",
+                    "Maior pausa: " + duracao(Desempenho.maiorPausaGcMs()) + ". Nessas pausas o jogo inteiro para. " + DiagnosticoAmbiente.FLAGS_G1));
         }
-        return n;
+        return lista;
     }
 
     public List<Component> modulos() {
@@ -307,7 +316,7 @@ public final class PainelStatus {
     }
 
     /** Resumo de uma linha para a pagina de modulos. */
-    static String resumoCurto(Modulo m) {
+    public static String resumoCurto(Modulo m) {
         return switch (m) {
             case DESPAWN_ITENS -> num(Estatisticas.DESPAWN_MOBS_LIBERADOS.get()) + " mobs · "
                     + num(Estatisticas.DESPAWN_ITENS_DEVOLVIDOS.get()) + " itens devolvidos";
@@ -324,7 +333,7 @@ public final class PainelStatus {
     }
 
     /** Texto completo (hover) de um modulo ligado. */
-    static String detalhe(Modulo m) {
+    public static String detalhe(Modulo m) {
         return switch (m) {
             case SALVAMENTO_ASSINCRONO -> String.format(PT, "%s arquivo(s) gravado(s) em outra thread, %s no thread principal, %s falha(s) regravada(s) depois.%s",
                     num(Estatisticas.SALVAMENTO_ASSINCRONOS.get()), num(Estatisticas.SALVAMENTO_SINCRONOS.get()), num(Estatisticas.SALVAMENTO_FALHAS.get()),
@@ -446,7 +455,7 @@ public final class PainelStatus {
     }
 
     /** "committee.nova...chest.ChestHandler.updateItemKeys" -> "ChestHandler.updateItemKeys". */
-    static String frameCurto(String frame) {
+    public static String frameCurto(String frame) {
         int metodo = frame.lastIndexOf('.');
         if (metodo <= 0) {
             return frame;
@@ -460,35 +469,14 @@ public final class PainelStatus {
     public List<Component> avisos() {
         List<Component> linhas = new ArrayList<>();
         linhas.add(titulo("Avisos"));
-        int n = 0;
-        for (Avisos.Aviso aviso : Avisos.todos()) {
+        List<Avisos.Aviso> lista = todosOsAvisos();
+        for (Avisos.Aviso aviso : lista) {
             linhas.add(hover(t(" " + alerta() + " ", ChatFormatting.YELLOW).append(t(cortar(aviso.curto(), LARGURA - 4), ChatFormatting.WHITE)), aviso.detalhe()));
-            n++;
-        }
-        if (!Estatisticas.SALVAMENTO_CLASSES_SINCRONAS.isEmpty()) {
-            int c = Estatisticas.SALVAMENTO_CLASSES_SINCRONAS.size();
-            linhas.add(hover(t(" " + alerta() + " ", ChatFormatting.YELLOW).append(t(c + " classe(s) gravando no thread principal", ChatFormatting.WHITE)),
-                    "Estes dados têm save(File) próprio e são gravados do jeito do mod, no thread principal: "
-                            + String.join(", ", Estatisticas.SALVAMENTO_CLASSES_SINCRONAS)
-                            + "\nSe o save(File) da classe só chama o do Minecraft, ela pode ir para salvamento_assincrono.serializar_classes."));
-            n++;
-        }
-        if (DiagnosticoAmbiente.arquivosLentos() > 0) {
-            linhas.add(hover(t(" " + alerta() + " ", ChatFormatting.YELLOW)
-                            .append(t(DiagnosticoAmbiente.arquivosLentos() + " arquivo(s) demoraram > 500 ms para abrir", ChatFormatting.WHITE)),
-                    DiagnosticoAmbiente.DICA_ANTIVIRUS));
-            n++;
-        }
-        if (Desempenho.pausasGcLongas() > 0) {
-            linhas.add(hover(t(" " + alerta() + " ", ChatFormatting.YELLOW).append(t(Desempenho.pausasGcLongas()
-                            + " pausa(s) da coleta de lixo > 500 ms", ChatFormatting.WHITE)),
-                    "Maior pausa: " + duracao(Desempenho.maiorPausaGcMs()) + ". Nessas pausas o jogo inteiro para. " + DiagnosticoAmbiente.FLAGS_G1));
-            n++;
         }
         if (ErrosMixin.FALHAS.isEmpty()) {
             linhas.add(t(" " + ok() + " Nenhum mixin falhou nesta inicialização", ChatFormatting.GREEN));
         }
-        if (n == 0) {
+        if (lista.isEmpty()) {
             linhas.add(t(" " + ok() + " Nenhum aviso", ChatFormatting.GREEN));
         }
         return linhas;

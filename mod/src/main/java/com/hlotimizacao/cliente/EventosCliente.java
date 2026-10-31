@@ -14,6 +14,9 @@ public final class EventosCliente {
     }
 
     public static void registrar() {
+        // Tela do /hl: tecla F8 (configuravel em Controles) e pacotes do servidor.
+        net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext.get().getModEventBus().addListener(ClienteHL::registrarTeclas);
+        MinecraftForge.EVENT_BUS.addListener(ClienteHL::aoTick);
         if (Config.ativo(Modulo.DIAGNOSTICO_LAG)) {
             // Para marcar os travamentos que acontecem no salvamento ao pausar o singleplayer.
             DiagnosticoLag.definirDetectorPausa(() -> {

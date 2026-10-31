@@ -45,6 +45,15 @@ public final class Comandos {
 
     private static LiteralArgumentBuilder<CommandSourceStack> arvore(String nome) {
         LiteralArgumentBuilder<CommandSourceStack> raiz = Commands.literal(nome)
+                // /hl sozinho: abre a tela se o cliente tiver o mod; senao (cliente vanilla, console) mostra o texto.
+                .executes(ctx -> {
+                    if (ctx.getSource().getEntity() instanceof net.minecraft.server.level.ServerPlayer jogador
+                            && com.hlotimizacao.rede.RedeHL.temCanal(jogador)) {
+                        com.hlotimizacao.rede.RedeHL.abrir(jogador);
+                        return 1;
+                    }
+                    return pagina(ctx, PainelStatus::visaoGeral);
+                })
                 .then(Commands.literal("status").executes(ctx -> pagina(ctx, PainelStatus::visaoGeral))
                         .then(Commands.literal("modulos").executes(ctx -> pagina(ctx, PainelStatus::modulos)))
                         .then(Commands.literal("desempenho").executes(ctx -> pagina(ctx, PainelStatus::desempenho)))

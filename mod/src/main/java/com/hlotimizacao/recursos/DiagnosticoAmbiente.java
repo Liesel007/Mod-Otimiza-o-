@@ -19,6 +19,7 @@ public final class DiagnosticoAmbiente {
     public static final String DICA_ANTIVIRUS = "Isso costuma ser o antivirus examinando cada arquivo do save. Adicione a pasta da instancia "
             + "as exclusoes do Windows Defender (ou do antivirus que voce usa).";
     private static volatile boolean ajusteGc = true;
+    private static volatile long xmsLido = -1;
     private static volatile boolean avisouAntivirus;
 
     /** Correcoes conhecidas: trecho do nome da config do mixin, trecho do motivo, explicacao. */
@@ -88,6 +89,7 @@ public final class DiagnosticoAmbiente {
             avisos++;
         }
         DiagnosticoAmbiente.ajusteGc = ajusteGc;
+        xmsLido = xms;
         if (!ajusteGc) {
             Config.LOGGER.info("[JVM] Nenhuma opcao de coleta de lixo (GC) nos argumentos. O Java 17 ja usa o G1, mas para modpacks grandes "
                     + "costuma ajudar: -XX:+UseG1GC -XX:MaxGCPauseMillis=130 -XX:+UnlockExperimentalVMOptions -XX:G1NewSizePercent=20 "
@@ -143,6 +145,11 @@ public final class DiagnosticoAmbiente {
             Config.LOGGER.warn("[Antivirus?] Abrir arquivos para gravar levou mais de {} ms {} vezes (ultimo: {} ms). Isso costuma ser o antivirus "
                     + "examinando cada arquivo do save. Adicione a pasta da instancia as exclusoes do Windows Defender.", ABRIR_ARQUIVO_LENTO_MS, n, ms);
         }
+    }
+
+    /** -Xms dos argumentos da JVM, ou -1 se nao foi passado. */
+    public static long xms() {
+        return xmsLido;
     }
 
     public static boolean temAjusteGc() {
