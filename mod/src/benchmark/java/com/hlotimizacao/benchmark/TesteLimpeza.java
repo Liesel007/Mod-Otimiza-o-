@@ -74,6 +74,28 @@ final class TesteLimpeza {
         return 1;
     }
 
+    private static volatile int atrasoPorTickMs;
+    private static boolean ouvinteRegistrado;
+
+    /** Deixa cada tick N ms mais lento (0 desliga), para simular um servidor atrasado. */
+    static int lento(CommandContext<CommandSourceStack> ctx) {
+        atrasoPorTickMs = IntegerArgumentType.getInteger(ctx, "ms");
+        if (!ouvinteRegistrado) {
+            ouvinteRegistrado = true;
+            net.minecraftforge.common.MinecraftForge.EVENT_BUS.addListener((net.minecraftforge.event.TickEvent.ServerTickEvent e) -> {
+                if (e.phase == net.minecraftforge.event.TickEvent.Phase.END && atrasoPorTickMs > 0) {
+                    try {
+                        Thread.sleep(atrasoPorTickMs);
+                    } catch (InterruptedException ignorado) {
+                        Thread.currentThread().interrupt();
+                    }
+                }
+            });
+        }
+        HLBench.LOGGER.info("HLBENCH lento ms_por_tick={} tick={}", atrasoPorTickMs, ctx.getSource().getServer().getTickCount());
+        return 1;
+    }
+
     /** Itens largados agora (devem ser protegidos pela idade minima). */
     static int novos(CommandContext<CommandSourceStack> ctx) {
         ServerLevel level = ctx.getSource().getServer().overworld();

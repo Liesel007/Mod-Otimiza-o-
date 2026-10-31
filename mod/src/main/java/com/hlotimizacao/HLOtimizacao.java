@@ -38,6 +38,9 @@ public class HLOtimizacao {
         // Prioridade mais baixa: registra depois dos outros mods, para saber se /hl ja esta em uso.
         MinecraftForge.EVENT_BUS.addListener(net.minecraftforge.eventbus.api.EventPriority.LOWEST, Comandos::registrar);
         MinecraftForge.EVENT_BUS.addListener(Desempenho::aoTick);
+        if (Config.ativo(Modulo.RELATORIO_CONFLITOS)) {
+            MinecraftForge.EVENT_BUS.addListener(com.hlotimizacao.recursos.DimensoesPesadas::aoTick);
+        }
         MinecraftForge.EVENT_BUS.addListener(Desempenho::aoSalvar);
         MinecraftForge.EVENT_BUS.addListener((ServerStartedEvent e) -> Desempenho.aoIniciarServidor());
         Desempenho.iniciarGc();

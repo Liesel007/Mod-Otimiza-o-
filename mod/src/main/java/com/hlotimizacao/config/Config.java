@@ -38,6 +38,7 @@ public final class Config {
     private static int lagLimiteMs = 2000;
     private static int lagIntervaloS = 30;
     private static int lagToleranciaS = 30;
+    private static Set<String> lagIgnorarMixins = Set.of("chrono:scalePlayerGameplayTick");
     private static Set<String> salvamentoSerializarClasses = Set.of();
     private static int limpezaIntervaloMin = 10;
     private static Set<Integer> limpezaAvisosS = Set.of(60, 30, 10, 5);
@@ -114,6 +115,7 @@ public final class Config {
         lagIntervaloS = lerInt(props, "diagnostico_lag.intervalo_s", 30, 1, 3600);
         lagToleranciaS = lerInt(props, "diagnostico_lag.tolerancia_inicio_s", 30, 0, 3600);
         salvamentoSerializarClasses = lista(props, "salvamento_assincrono.serializar_classes", "");
+        lagIgnorarMixins = lista(props, "diagnostico_lag.ignorar_mixins", "chrono:scalePlayerGameplayTick");
         limpezaIntervaloMin = lerInt(props, "limpeza_itens.intervalo_min", 10, 1, 1440);
         Set<Integer> avisos = new java.util.TreeSet<>();
         for (String aviso : lista(props, "limpeza_itens.avisos_s", "60,30,10,5")) {
@@ -137,6 +139,7 @@ public final class Config {
                 {"diagnostico_lag.intervalo_s", Integer.toString(lagIntervaloS)},
                 {"diagnostico_lag.tolerancia_inicio_s", Integer.toString(lagToleranciaS)},
                 {"salvamento_assincrono.serializar_classes", String.join(",", salvamentoSerializarClasses)},
+                {"diagnostico_lag.ignorar_mixins", "chrono:scalePlayerGameplayTick"},
                 {"limpeza_itens.intervalo_min", Integer.toString(limpezaIntervaloMin)},
                 {"limpeza_itens.avisos_s", "60,30,10,5"},
                 {"limpeza_itens.idade_minima_s", Integer.toString(limpezaIdadeMinimaS)},
@@ -251,6 +254,10 @@ public final class Config {
         return lagIntervaloS;
     }
 
+    public static Set<String> lagIgnorarMixins() {
+        return lagIgnorarMixins;
+    }
+
     public static int lagToleranciaS() {
         carregar();
         return lagToleranciaS;
@@ -337,7 +344,9 @@ public final class Config {
         sb.append("diagnostico_lag.intervalo_s=").append(props.getProperty("diagnostico_lag.intervalo_s")).append('\n');
         sb.append("# Segundos sem registrar depois de abrir o mundo (e depois do primeiro jogador entrar),\n");
         sb.append("# enquanto classes e chunks ainda estao carregando.\n");
-        sb.append("diagnostico_lag.tolerancia_inicio_s=").append(props.getProperty("diagnostico_lag.tolerancia_inicio_s")).append("\n\n");
+        sb.append("diagnostico_lag.tolerancia_inicio_s=").append(props.getProperty("diagnostico_lag.tolerancia_inicio_s")).append('\n');
+        sb.append("# Mixins que so repassam a chamada e nunca sao a causa de um travamento (mod:metodo, separados por virgula).\n");
+        sb.append("diagnostico_lag.ignorar_mixins=").append(props.getProperty("diagnostico_lag.ignorar_mixins")).append("\n\n");
         sb.append("# salvamento_assincrono: SavedData que sobrescrevem save(File) sao gravados no thread principal, do jeito do mod.\n");
         sb.append("# O log mostra quais classes sao essas. Classes listadas aqui (nomes completos, separados por virgula) passam\n");
         sb.append("# a ser serializadas com save(CompoundTag) e gravadas em outra thread, IGNORANDO o save(File) do mod.\n");

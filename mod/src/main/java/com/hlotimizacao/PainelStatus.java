@@ -256,7 +256,7 @@ public final class PainelStatus {
         return DiagnosticoLag.msPorMod().entrySet().stream()
                 .filter(e -> !e.getKey().equals(DiagnosticoLag.SEM_MOD))
                 .max(Map.Entry.comparingByValue())
-                .map(e -> cortar(e.getKey(), 16) + " " + Math.round(100.0 * e.getValue() / total) + "%")
+                .map(e -> cortar(DiagnosticoLag.rotulo(e.getKey()), 16) + " " + Math.round(100.0 * e.getValue() / total) + "%")
                 .orElse(null);
     }
 
@@ -413,9 +413,9 @@ public final class PainelStatus {
             return linhas;
         }
         DiagnosticoLag.Registro pior = DiagnosticoLag.pior();
-        linhas.add(t(String.format(PT, " %s travamentos %s total %s", num(n), ponto(), duracao(DiagnosticoLag.msTotal())), ChatFormatting.YELLOW)
+        linhas.add(t(String.format(PT, " %s travamento%s %s total %s", num(n), n == 1 ? "" : "s", ponto(), duracao(DiagnosticoLag.msTotal())), ChatFormatting.YELLOW)
                 .append(t(pior == null ? "" : " " + ponto() + " pior " + duracao(pior.duracaoMs()) + " às " + pior.hora().format(HORA), ChatFormatting.GRAY)));
-        linhas.add(t(" Mods mais culpados:", ChatFormatting.WHITE, ChatFormatting.BOLD));
+        linhas.add(t(" Principais causas:", ChatFormatting.WHITE, ChatFormatting.BOLD));
         long total = Math.max(1, DiagnosticoLag.msTotal());
         List<Map.Entry<String, Long>> ranking = new ArrayList<>(DiagnosticoLag.msPorMod().entrySet());
         ranking.sort(Map.Entry.<String, Long>comparingByValue().reversed());
@@ -425,17 +425,19 @@ public final class PainelStatus {
                 break;
             }
             boolean semMod = e.getKey().equals(DiagnosticoLag.SEM_MOD);
-            String mod = semMod ? "Minecraft/Forge" : e.getKey();
-            String frame = semMod ? "" : "(" + frameCurto(DiagnosticoLag.framePorMod(e.getKey())) + ")";
+            boolean padrao = DiagnosticoLag.ehPadrao(e.getKey());
+            String mod = DiagnosticoLag.rotulo(e.getKey());
+            String frame = semMod || padrao ? "" : "(" + frameCurto(DiagnosticoLag.framePorMod(e.getKey())) + ")";
             linhas.add(hover(t(String.format(PT, "   %d. %s %3d%%  ", pos, preencher(cortar(mod, 14), 14), Math.round(100.0 * e.getValue() / total)),
                             ChatFormatting.GRAY).append(t(cortar(frame, 28), ChatFormatting.DARK_GRAY)),
-                    mod + ": " + duracao(e.getValue()) + " de travamento atribuído\n" + DiagnosticoLag.framePorMod(e.getKey())));
+                    mod + ": " + duracao(e.getValue()) + " de travamento atribuído\n"
+                            + (padrao ? DiagnosticoLag.explicacao(e.getKey()) + "\n" : "") + DiagnosticoLag.framePorMod(e.getKey())));
             pos++;
         }
         linhas.add(t(" Últimos " + Math.min(3, historico.size()) + ":", ChatFormatting.WHITE, ChatFormatting.BOLD));
         for (int i = 0; i < Math.min(3, historico.size()); i++) {
             DiagnosticoLag.Registro r = historico.get(i);
-            String mod = r.mod().equals(DiagnosticoLag.SEM_MOD) ? "Minecraft/Forge" : r.mod();
+            String mod = DiagnosticoLag.rotulo(r.mod());
             linhas.add(hover(t(String.format(PT, "   %s %s %s %s %s", r.hora().format(HORA), preencher(duracao(r.duracaoMs()), 7),
                     preencher(cortar(r.tipo(), 14), 14), ponto(), cortar(mod, 14)), ChatFormatting.GRAY), r.tipo() + "\n" + mod + ": " + r.frame()));
         }

@@ -5,7 +5,7 @@ Mod de otimização feito a partir do estudo do código dos mods do modpack HL
 **código próprio** (sem copiar código dos outros mods, que têm licenças diferentes) e **corrige erros**
 encontrados neles.
 
-**Jar pronto:** [`releases/hlotimizacao-0.1.5.jar`](../releases/hlotimizacao-0.1.5.jar). Basta colocá-lo
+**Jar pronto:** [`releases/hlotimizacao-0.1.6.jar`](../releases/hlotimizacao-0.1.6.jar). Basta colocá-lo
 na pasta `mods` da instância.
 
 ## Como ele convive com os mods do pack
@@ -120,6 +120,39 @@ Teste de antes e depois com números: [`docs/benchmark.md`](../docs/benchmark.md
   e o funcionamento junto com o pack HL completo. Teste num mundo de cópia antes de usar no mundo principal.
 
 ## Histórico de versões
+
+### 0.1.6
+Duas correções feitas a partir do `latest.log` de 31/10 (08:47–09:01).
+
+**`limpeza_itens` não rodava com o servidor atrasado.** O horário da próxima limpeza era contado em ticks;
+com o servidor atrasado (27 avisos de "Can't keep up" na sessão), 10 minutos viravam bem menos que 12.000
+ticks e a limpeza ficava sempre para depois, justamente quando mais ajudaria. Agora:
+- o agendamento e os avisos (60/30/10/5 s) usam o relógio real;
+- com o singleplayer pausado, o relógio da limpeza para (o cliente soma o tempo pausado), para ela não
+  disparar logo depois de voltar do menu;
+- um aviso igual ou maior que o tempo restante não é dado (antes saía "60 segundos" logo ao agendar 1 min);
+- `/hl limpar status` e `/hl status` mostram o tempo restante pelo relógio real.
+
+Teste: com cada tick 150 ms mais lento (~200 ms por tick, servidor a ~5 TPS) e intervalo de 1 minuto, a
+limpeza aconteceu 60 s depois de abrir o mundo (no modo antigo, por ticks, seriam 240 s).
+
+**`diagnostico_lag` culpava um mod que só "embrulha" a chamada** (`chrono 100%` num travamento de 10,5 s em
+que o servidor esperava um chunk depois de um teleporte). Agora a causa de cada amostra é decidida assim:
+1. padrões de espera, pelo topo da pilha: **carregamento síncrono de chunk** (`managedBlock` vindo de
+   `ServerChunkCache.getChunk`, nomes de dev e SRG), **gravação em disco**, **compressão ao salvar** e
+   **carregamento de classes**, com o mod que pediu ("pedido por: shetiphiancore (Entity.getLandingPos)");
+2. senão, o mod mais próximo do topo, só até o 12º frame; mais fundo que isso vira
+   `Minecraft/Forge (o mod mais proximo, X, esta a N frames do topo)`;
+3. mixins da lista `diagnostico_lag.ignorar_mixins` (padrão `chrono:scalePlayerGameplayTick`) nunca são a causa.
+
+Testes: 8 pilhas sintéticas (espera de chunk com o Chrono no fundo, nomes SRG, Chrono de passagem, gravação
+em disco, compressão, carregamento de classes, mod real no topo, mod a 15 frames): 8 de 8 certas. Num
+travamento real de 12–14 s gerando 169 chunks de forma síncrona: `carregamento sincrono de chunk 100% (...;
+pedido por: hlbench (TesteLag.gerar))`.
+
+**Novo aviso em `/hl status avisos`:** dimensão com mais de 300 entidades ou mais de 200 itens no chão (amostra
+a cada 60 s e nos relatórios do diagnóstico), com o maior valor da sessão e os spawners ativos, por exemplo
+`the_other: 708 entid., 413 itens, 79 spawners`.
 
 ### 0.1.5
 `/hl status` reorganizado em páginas (ver a tabela de comandos acima):

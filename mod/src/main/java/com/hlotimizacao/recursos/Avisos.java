@@ -23,6 +23,11 @@ public final class Avisos {
         AVISOS.put(curto, new Aviso(curto, detalhe));
     }
 
+    /** Aviso com identificador proprio (o texto curto muda, ex.: o maior numero visto). */
+    public static synchronized void substituir(String id, String curto, String detalhe) {
+        AVISOS.put(id, new Aviso(curto, detalhe));
+    }
+
     public static synchronized List<Aviso> todos() {
         return new ArrayList<>(AVISOS.values());
     }

@@ -403,22 +403,152 @@ public final class DiagnosticoLag {
         contagem.forEach((mod, n) -> MS_POR_MOD.merge(mod, registro.duracaoMs() * n / amostras, Long::sum));
     }
 
-    /** Conta as amostras por mod dono do primeiro frame que nao e do Minecraft/Forge/Java; exemplo = um frame de cada mod. */
+    // Causas que nao sao um mod: padroes de espera reconhecidos pelo topo da pilha.
+    public static final String CHUNK_SINCRONO = "carregamento sincrono de chunk";
+    public static final String GRAVACAO_DISCO = "gravacao em disco";
+    public static final String COMPRESSAO = "compressao ao salvar";
+    public static final String CARREGANDO_CLASSES = "carregamento de classes";
+    private static final Map<String, String> EXPLICACAO = Map.of(
+            CHUNK_SINCRONO, "o servidor esperou um chunk ficar pronto; comum ao teleportar ou viajar rapido",
+            GRAVACAO_DISCO, "abrindo ou gravando arquivo; se for frequente, veja o antivirus",
+            COMPRESSAO, "comprimindo dados ao salvar",
+            CARREGANDO_CLASSES, "acontece uma vez por classe, normalmente logo depois de entrar no mundo");
+    /** Frames de mod mais fundos que isso nao contam como causa (estao so "embrulhando" a chamada). */
+    static final int PROFUNDIDADE_MAXIMA = 12;
+
+    /** Causa de uma amostra: um mod, um padrao de espera ou Minecraft/Forge. */
+    public record Causa(String chave, String detalhe) {
+    }
+
+    public static boolean ehPadrao(String chave) {
+        return EXPLICACAO.containsKey(chave);
+    }
+
+    /** Nome curto para mostrar no /hl status (mods aparecem pelo id; padroes por um rotulo). */
+    public static String rotulo(String chave) {
+        return switch (chave) {
+            case CHUNK_SINCRONO -> "chunk síncrono";
+            case GRAVACAO_DISCO -> "gravação em disco";
+            case COMPRESSAO -> "compressão";
+            case CARREGANDO_CLASSES -> "carregar classes";
+            case SEM_MOD -> "Minecraft/Forge";
+            default -> chave;
+        };
+    }
+
+    public static String explicacao(String chave) {
+        return EXPLICACAO.getOrDefault(chave, "");
+    }
+
+    private static boolean metodo(StackTraceElement f, String classe, String... nomes) {
+        if (!f.getClassName().equals(classe)) {
+            return false;
+        }
+        for (String nome : nomes) {
+            if (f.getMethodName().equals(nome)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static String nomeCurto(StackTraceElement f) {
+        String classe = f.getClassName();
+        String metodo = f.getMethodName();
+        if (metodo.indexOf('$') > 0) {
+            String[] partes = metodo.split("\\$");
+            metodo = partes[partes.length - 1];
+        }
+        return classe.substring(classe.lastIndexOf('.') + 1) + "." + metodo;
+    }
+
+    /** Handler de mixin da lista diagnostico_lag.ignorar_mixins ("mod:metodo"): so repassa a chamada. */
+    static boolean mixinIgnorado(StackTraceElement f) {
+        String metodo = f.getMethodName();
+        if (metodo.indexOf('$') <= 0) {
+            return false;
+        }
+        String[] partes = metodo.split("\\$");
+        if (partes.length < 4 || !ehPrefixoMixin(partes[0])) {
+            return false;
+        }
+        return Config.lagIgnorarMixins().contains(partes[2] + ":" + partes[partes.length - 1]);
+    }
+
+    /** Primeiro frame de mod a partir de "desde" (ignorando os mixins de passagem), ou null. */
+    private static StackTraceElement primeiroDeMod(StackTraceElement[] pilha, int desde, int ate) {
+        for (int i = desde; i < Math.min(pilha.length, ate); i++) {
+            if (!mixinIgnorado(pilha[i]) && modDoFrame(pilha[i]) != null) {
+                return pilha[i];
+            }
+        }
+        return null;
+    }
+
+    private static Causa padrao(String chave, StackTraceElement[] pilha, int desde) {
+        StackTraceElement pedido = primeiroDeMod(pilha, desde, desde + 25);
+        return new Causa(chave, pedido == null ? "" : "pedido por: " + modDoFrame(pedido) + " (" + nomeCurto(pedido) + ")");
+    }
+
+    /**
+     * Classifica uma amostra. Primeiro os padroes de espera (o topo da pilha diz o que o servidor estava
+     * fazendo); depois o mod mais proximo do topo, ate PROFUNDIDADE_MAXIMA frames, ignorando os mixins
+     * que so repassam a chamada (ex.: o Chrono, presente em todo tick de jogador).
+     */
+    public static Causa classificar(StackTraceElement[] pilha) {
+        if (pilha.length == 0) {
+            return new Causa(SEM_MOD, "");
+        }
+        // 1. Espera por chunk: managedBlock no topo, vindo de ServerChunkCache.getChunk.
+        for (int i = 0; i < Math.min(pilha.length, 6); i++) {
+            if (metodo(pilha[i], "net.minecraft.util.thread.BlockableEventLoop", "managedBlock", "m_18701_")
+                    || metodo(pilha[i], "net.minecraft.server.level.ServerChunkCache$MainThreadExecutor", "managedBlock", "m_18701_")) {
+                for (int j = i + 1; j < Math.min(pilha.length, i + 6); j++) {
+                    if (metodo(pilha[j], "net.minecraft.server.level.ServerChunkCache", "getChunk", "m_7587_", "getChunkBlocking", "m_8373_")) {
+                        return padrao(CHUNK_SINCRONO, pilha, j + 1);
+                    }
+                }
+            }
+        }
+        // 2. Disco e compressao, pelo topo da pilha.
+        for (int i = 0; i < Math.min(pilha.length, 6); i++) {
+            String c = pilha[i].getClassName();
+            String m = pilha[i].getMethodName();
+            if (ABRIR_ARQUIVO.contains(c + "." + m) || (c.equals("java.io.FileOutputStream") && m.startsWith("write"))
+                    || (c.equals("java.io.RandomAccessFile") && m.startsWith("write")) || c.equals("sun.nio.ch.FileDispatcherImpl")) {
+                return padrao(GRAVACAO_DISCO, pilha, i + 1);
+            }
+            if (c.startsWith("java.util.zip.Deflater") || c.equals("java.util.zip.GZIPOutputStream")) {
+                return padrao(COMPRESSAO, pilha, i + 1);
+            }
+        }
+        // 3. Carregamento de classes.
+        for (int i = 0; i < Math.min(pilha.length, 20); i++) {
+            if ((pilha[i].getClassName().equals("java.lang.ClassLoader") && pilha[i].getMethodName().startsWith("defineClass"))
+                    || pilha[i].getMethodName().equals("<clinit>")) {
+                return padrao(CARREGANDO_CLASSES, pilha, i);
+            }
+        }
+        // 4. Mod mais proximo do topo, ate a profundidade maxima.
+        StackTraceElement perto = primeiroDeMod(pilha, 0, PROFUNDIDADE_MAXIMA);
+        if (perto != null) {
+            return new Causa(modDoFrame(perto), perto.getClassName() + "." + perto.getMethodName());
+        }
+        for (int i = PROFUNDIDADE_MAXIMA; i < pilha.length; i++) {
+            if (!mixinIgnorado(pilha[i]) && modDoFrame(pilha[i]) != null) {
+                return new Causa(SEM_MOD, "o mod mais proximo, " + modDoFrame(pilha[i]) + ", esta a " + i + " frames do topo");
+            }
+        }
+        return new Causa(SEM_MOD, nomeCurto(pilha[0]));
+    }
+
+    /** Conta as amostras por causa (mod ou padrao de espera); exemplo = o detalhe de cada uma. */
     static Map<String, Integer> contarPorMod(List<StackTraceElement[]> amostras, Map<String, String> exemplo) {
         Map<String, Integer> contagem = new LinkedHashMap<>();
         for (StackTraceElement[] pilha : amostras) {
-            String mod = SEM_MOD;
-            String frameExemplo = pilha.length > 0 ? pilha[0].getClassName() + "." + pilha[0].getMethodName() : "?";
-            for (StackTraceElement frame : pilha) {
-                String dono = modDoFrame(frame);
-                if (dono != null) {
-                    mod = dono;
-                    frameExemplo = frame.getClassName() + "." + frame.getMethodName();
-                    break;
-                }
-            }
-            contagem.merge(mod, 1, Integer::sum);
-            exemplo.putIfAbsent(mod, frameExemplo);
+            Causa causa = classificar(pilha);
+            contagem.merge(causa.chave(), 1, Integer::sum);
+            exemplo.putIfAbsent(causa.chave(), causa.detalhe());
         }
         return contagem;
     }
@@ -437,7 +567,9 @@ public final class DiagnosticoLag {
         return contagem.entrySet().stream()
                 .sorted(Map.Entry.<String, Integer>comparingByValue().reversed())
                 .limit(3)
-                .map(e -> String.format("%s %d%% (%s)", e.getKey(), Math.round(100.0 * e.getValue() / total), exemplo.get(e.getKey())))
+                .map(e -> String.format("%s %d%% (%s)", e.getKey(), Math.round(100.0 * e.getValue() / total),
+                        ehPadrao(e.getKey()) ? explicacao(e.getKey()) + (exemplo.get(e.getKey()).isEmpty() ? "" : "; " + exemplo.get(e.getKey()))
+                                : exemplo.get(e.getKey())))
                 .collect(Collectors.joining(", ")) + String.format(" [%d amostra(s)]", total);
     }
 
@@ -576,6 +708,9 @@ public final class DiagnosticoLag {
             }
             blocos.merge(tipo, 1, Integer::sum);
         }
+        int itens = entidades.getOrDefault("minecraft:item", 0);
+        int spawners = blocos.entrySet().stream().filter(e -> e.getKey().contains("spawner")).mapToInt(Map.Entry::getValue).sum();
+        DimensoesPesadas.verificar(level.dimension().location().toString(), totalEntidades, itens, spawners);
         AtomicIntegerArray noTick = CHUNKS_DESDE_ULTIMO_TICK.get(level.dimension().location().toString());
         sb.append(String.format("  %s: jogadores=%d, chunks prontos=%d, parciais (borda ou em geracao)=%d, tarefas pendentes=%d%n",
                 level.dimension().location(), jogadores, prontos, total - prontos, level.getChunkSource().getPendingTasksCount()));

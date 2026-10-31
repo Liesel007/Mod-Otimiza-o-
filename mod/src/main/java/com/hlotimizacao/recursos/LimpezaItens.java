@@ -36,7 +36,14 @@ public final class LimpezaItens {
     public static final AtomicLong LIMPEZAS = new AtomicLong();
     public static final AtomicLong ITENS_REMOVIDOS = new AtomicLong();
 
-    private static long proximaLimpezaTick = -1;
+    /**
+     * Horario (relogio real) da proxima limpeza, ou -1. Em tempo real, e nao em ticks: com o servidor
+     * atrasado, 10 minutos viram bem menos que 12.000 ticks e a limpeza ficaria sempre para depois,
+     * justamente quando ha mais lag.
+     */
+    private static volatile long proximaLimpezaMs = -1;
+    /** Avisos (em segundos) ja dados para a limpeza agendada. */
+    private static final java.util.Set<Integer> AVISOS_DADOS = java.util.concurrent.ConcurrentHashMap.newKeySet();
     private static final Deque<ItemEntity> FILA = new ArrayDeque<>();
     private static boolean limpando;
     private static int removidosNestaLimpeza;
@@ -50,18 +57,35 @@ public final class LimpezaItens {
     private LimpezaItens() {
     }
 
-    private static int ticksPorMinuto() {
-        return 20 * 60;
+    private static long intervaloMs() {
+        return Config.limpezaIntervaloMin() * 60_000L;
     }
 
     public static void aoIniciarServidor(MinecraftServer server) {
         FILA.clear();
         limpando = false;
-        agendar(server, Config.limpezaIntervaloMin() * (long) ticksPorMinuto());
+        agendar(intervaloMs());
     }
 
-    private static void agendar(MinecraftServer server, long daquiTicks) {
-        proximaLimpezaTick = server.getTickCount() + Math.max(1, daquiTicks);
+    private static synchronized void agendar(long daquiMs) {
+        proximaLimpezaMs = System.currentTimeMillis() + Math.max(1, daquiMs);
+        AVISOS_DADOS.clear();
+        // Agendada com pouco tempo (ex.: /hl limpar, 10 s): os avisos maiores que isso nao fazem sentido.
+        for (int aviso : Config.limpezaAvisosS()) {
+            if (aviso * 1000L >= daquiMs) {
+                AVISOS_DADOS.add(aviso);
+            }
+        }
+    }
+
+    /**
+     * Chamado pelo cliente enquanto o singleplayer esta pausado (o servidor integrado nao roda ticks):
+     * empurra a limpeza para frente, para ela nao disparar logo depois de voltar do menu.
+     */
+    public static synchronized void adiar(long ms) {
+        if (proximaLimpezaMs >= 0 && !limpando) {
+            proximaLimpezaMs += ms;
+        }
     }
 
     /** Marca os itens que um jogador deixou cair ao morrer. */
@@ -74,7 +98,7 @@ public final class LimpezaItens {
     }
 
     public static void aoTick(TickEvent.ServerTickEvent event) {
-        if (event.phase != TickEvent.Phase.END || proximaLimpezaTick < 0) {
+        if (event.phase != TickEvent.Phase.END || proximaLimpezaMs < 0) {
             return;
         }
         MinecraftServer server = event.getServer();
@@ -82,18 +106,23 @@ public final class LimpezaItens {
             continuar(server);
             return;
         }
-        long faltamTicks = proximaLimpezaTick - server.getTickCount();
-        if (faltamTicks <= 0) {
+        long faltamMs = proximaLimpezaMs - System.currentTimeMillis();
+        if (faltamMs <= 0) {
             comecar(server);
             return;
         }
-        if (faltamTicks % 20 == 0) {
-            int faltamS = (int) (faltamTicks / 20);
-            if (Config.limpezaAvisosS().contains(faltamS)) {
-                avisar(server, Component.literal("[HL] ").withStyle(ChatFormatting.GOLD)
-                        .append(Component.literal("Os itens no chao serao apagados em " + faltamS + " segundo" + (faltamS == 1 ? "" : "s") + "!")
-                                .withStyle(ChatFormatting.YELLOW)));
+        // Do maior para o menor: se um travamento pulou varios avisos de uma vez, anuncia so o menor.
+        Integer anunciar = null;
+        for (int aviso : new java.util.TreeSet<>(Config.limpezaAvisosS()).descendingSet()) {
+            if (faltamMs <= aviso * 1000L && AVISOS_DADOS.add(aviso)) {
+                anunciar = aviso;
             }
+        }
+        if (anunciar != null) {
+            int faltamS = anunciar;
+            avisar(server, Component.literal("[HL] ").withStyle(ChatFormatting.GOLD)
+                    .append(Component.literal("Os itens no chao serao apagados em " + faltamS + " segundo" + (faltamS == 1 ? "" : "s") + "!")
+                            .withStyle(ChatFormatting.YELLOW)));
         }
     }
 
@@ -160,7 +189,7 @@ public final class LimpezaItens {
             Config.LOGGER.info("[limpeza_itens] {} pilha(s) ({} itens) removida(s), {} protegida(s) {}; {} ms em {} tick(s), no maximo {} ms num tick",
                     removidosNestaLimpeza, itensNestaLimpeza, protegidosNestaLimpeza, MOTIVOS, String.format("%.1f", nsNestaLimpeza / 1e6),
                     ticksNestaLimpeza, String.format("%.1f", maiorTickNs / 1e6));
-            agendar(server, Config.limpezaIntervaloMin() * (long) ticksPorMinuto());
+            agendar(intervaloMs());
         }
     }
 
@@ -199,7 +228,7 @@ public final class LimpezaItens {
     /** /hl limpar: limpa daqui a 10 s, com os avisos de 10 s para baixo. */
     public static void limparAgora(MinecraftServer server) {
         if (!limpando) {
-            agendar(server, 10 * 20);
+            agendar(10_000);
         }
     }
 
@@ -208,7 +237,7 @@ public final class LimpezaItens {
         if (limpando) {
             return false;
         }
-        agendar(server, Config.limpezaIntervaloMin() * (long) ticksPorMinuto());
+        agendar(intervaloMs());
         avisar(server, Component.literal("[HL] ").withStyle(ChatFormatting.GOLD)
                 .append(Component.literal("A limpeza de itens foi cancelada.").withStyle(ChatFormatting.YELLOW)));
         return true;
@@ -220,7 +249,7 @@ public final class LimpezaItens {
 
     /** Segundos ate a proxima limpeza (-1 se nao agendada). */
     public static long segundosParaProxima(MinecraftServer server) {
-        return proximaLimpezaTick < 0 ? -1 : Math.max(0, proximaLimpezaTick - server.getTickCount()) / 20;
+        return proximaLimpezaMs < 0 ? -1 : Math.max(0, proximaLimpezaMs - System.currentTimeMillis()) / 1000;
     }
 
     /** {pilhas, itens} soltos no chao agora. */
@@ -240,7 +269,7 @@ public final class LimpezaItens {
 
     public static List<String> status(MinecraftServer server) {
         List<String> linhas = new ArrayList<>();
-        long faltam = Math.max(0, proximaLimpezaTick - server.getTickCount()) / 20;
+        long faltam = Math.max(0, segundosParaProxima(server));
         int itens = 0;
         int pilhas = 0;
         for (ServerLevel level : server.getAllLevels()) {
