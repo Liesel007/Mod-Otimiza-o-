@@ -1,11 +1,15 @@
-# HL Otimização (mod para Forge 1.20.1)
+# HLO: HL Otimização (mod para Forge 1.20.1)
 
-Mod de otimização feito a partir do estudo do código dos mods do modpack HL
-(ver [`docs/aprendizados.md`](../docs/aprendizados.md)). Ele reúne técnicas desses mods com
-**código próprio** (sem copiar código dos outros mods, que têm licenças diferentes) e **corrige erros**
-encontrados neles.
+Correções de desempenho e estabilidade, em módulos, para modpacks Forge 1.20.1. Nasceu do estudo do código
+dos mods do modpack HL (ver [`docs/aprendizados.md`](../docs/aprendizados.md)) e serve para qualquer pack: reúne
+técnicas desses mods com **código próprio** (sem copiar código dos outros mods, que têm licenças diferentes),
+**corrige erros** encontrados neles e cada módulo **se desliga sozinho** quando um mod que faz o mesmo está instalado.
 
-**Jar pronto:** [`releases/hlotimizacao-0.2.2.jar`](../releases/hlotimizacao-0.2.2.jar). Basta colocá-lo
+Nome exibido: **HLO: HL Optimization** (o modId continua `hlotimizacao`, para não quebrar configs e mundos).
+Licença: [MIT](../LICENSE). Página do projeto (textos para o CurseForge): [`docs/curseforge/`](../docs/curseforge/).
+Mudanças por versão em inglês: [`CHANGELOG.md`](../CHANGELOG.md).
+
+**Jar pronto:** [`releases/hlotimizacao-0.3.0.jar`](../releases/hlotimizacao-0.3.0.jar). Basta colocá-lo
 na pasta `mods` da instância.
 
 ## Como ele convive com os mods do pack
@@ -18,7 +22,66 @@ Cada módulo tem três modos em `config/hlotimizacao.properties` (criado na prim
 - `off`: desliga.
 
 O log mostra, na inicialização, o estado de cada módulo e o motivo
-(`Modulo despawn_itens: desligado automaticamente: letmedespawn ja faz isso`).
+(`Module despawn_itens: turned off automatically: letmedespawn already does this`).
+
+## Presets (0.3.0)
+
+`preset=` no topo da config. O preset **só define os padrões**: o que estiver escrito na config tem prioridade.
+
+| Preset | Quando (`preset=auto`) | O que muda |
+|---|---|---|
+| `leve` (light) | até 120 mods | só correções e diagnóstico: os módulos que mudam o jogo (`alcance_ativacao`, `limite_enxame`, `limpeza_itens`, `insercao_rapida`) ficam desligados quando estão em `auto` |
+| `padrao` (default) | 121 a 250 mods | tudo em `auto` liga; `insercao_rapida` continua desligado; alcance 48 blocos, 1 tick a cada 20; limpeza a cada 10 min |
+| `agressivo` (aggressive) | mais de 250 mods | como o padrão, mais `insercao_rapida` ligado; alcance 40 blocos, 1 tick a cada 30; limpeza a cada 5 min |
+| `personalizado` (custom) | nunca automático | como o padrão; para quem ajusta tudo à mão |
+
+Os números do preset valem para as chaves que estão como `auto` (`alcance_ativacao.horizontal`,
+`alcance_ativacao.intervalo`, `limpeza_itens.intervalo_min`). Um módulo com `on` liga em qualquer preset. A linha
+`N mods detected -> preset "..."` no começo do log diz qual foi escolhido. O `/hl` e a tela mostram o preset.
+
+## Idioma (0.3.0)
+
+Log, `/hl`, avisos e comentários da config em **inglês por padrão**. Em **português** quando o Java está em
+português (`log.idioma=auto`, o padrão) ou com `log.idioma=pt_br`; `log.idioma=en_us` força inglês. A tela do F8
+segue o idioma do jogo (arquivos `lang`). Os nomes das chaves da config continuam em português, para as configs
+antigas seguirem valendo; a descrição de cada uma está em inglês nos comentários e no hover da aba Config.
+
+Os textos ficam no código em português e passam por `Msg.t`/`Msg.f` (e pelo `Config.LOGGER`, que traduz o modelo).
+A tradução está em [`ferramentas/traducao/en.py`](ferramentas/traducao/en.py); `python3 ferramentas/traducao/gerar.py`
+regrava `config/MensagensEn.java` e falha se algum texto do código ficar sem tradução ou se os `{}`/`%d` não baterem.
+
+## Modo seguro e custo do HLO (0.3.0)
+
+- **Modo seguro**: se um módulo lança exceção num ponto de entrada (mixin ou evento), aquela chamada segue pelo
+  caminho original do jogo; no **3º erro** o módulo se desliga até reiniciar, com aviso no log
+  (`[modo_seguro]`), no `/hl status avisos` e na tela. Cobre os pontos chamados durante o jogo: `alcance_ativacao`,
+  `limite_enxame`, `limpeza_itens`, `diagnostico_lag` (a vigia para junto), `diagnostico_insercao`,
+  `insercao_rapida`, o atalho do Infinity Chest e o aviso de dimensão pesada. Na inserção, se o erro vier **depois**
+  de um item ter entrado de verdade, o erro é repassado em vez de seguir pelo Forge, porque repetir a inserção
+  duplicaria itens. Os mixins de salvamento, de conquistas e do Re-Avaritia mexem em dados e não são desligados no
+  meio do jogo: um erro neles aparece como antes.
+- **Custo do HLO**: tempo médio por tick que o próprio HLO gasta no thread do servidor (mixins e eventos), em
+  `/hl status desempenho` e na aba Desempenho. Caminhos chamados milhares de vezes por tick (uma vez por entidade,
+  por inserção) medem 1 chamada a cada 32 e multiplicam. Com a tela aberta, inclui a montagem dos dados da tela.
+- Conflitos novos: com o **Neruina** instalado o log só informa que os dois se completam (ele trata entidades e
+  blocos que crasham no tick; o modo seguro cuida só do HLO).
+
+## Lados: cliente e servidor (0.3.0)
+
+O HLO **não exige estar dos dois lados**. Testado com os jars de produção e o Forge 47.3.0:
+
+| Combinação | Resultado |
+|---|---|
+| Servidor com HLO + cliente Forge **sem** HLO | entra normalmente; os módulos de servidor funcionam; mensagens do HLO (avisos da limpeza) chegam ao chat; `/hl` em texto |
+| Servidor com HLO + cliente com HLO | tela F8 com os dados do servidor (canal `hlotimizacao:painel2`) |
+| Singleplayer só com o HLO | tudo, inclusive F8 e `/hl` |
+| Cliente com HLO + servidor sem HLO (ou com outra versão do HLO) | entra normalmente; só os módulos de cliente; F8 avisa que o servidor não tem o HLO. Na 0.3.0 testado com cliente 0.2.2 num servidor 0.3.0 (o servidor não tem o canal que o cliente procura, o mesmo caminho de um servidor sem HLO) |
+
+Módulos de cliente: `vazamento_gpu`, `fps_sem_foco`, `toasts_vazios`, `tooltip_seguro` (e a tela). Todos os outros
+são de servidor (no singleplayer, o servidor interno). Cliente 0.2.x com servidor 0.3.0 (ou o contrário): o formato
+da tela mudou (preset e custo), então o canal passou de `painel` para `painel2`. Com o mesmo nome e outra versão o
+Forge recusaria a conexão; com outro nome cada lado vê o canal do outro como ausente, o jogador entra normalmente,
+o F8 avisa que o servidor não tem o HLO (ou tem outra versão) e o `/hl` em texto continua funcionando.
 
 ## Módulos
 
@@ -37,7 +100,7 @@ O log mostra, na inicialização, o estado de cada módulo e o motivo
 | `alcance_ativacao` | ServerCore, NoTick, Paper | `servercore`, `notick` | servidor |
 | `limite_enxame` | mobcaps do ServerCore (por tipo) | — | servidor |
 | `diagnostico_insercao` | (diagnóstico) | — | servidor |
-| `insercao_rapida` | (opcional, **desligado por padrão**) | — | servidor |
+| `insercao_rapida` | (opcional, **ligado só no preset agressivo**) | — | servidor |
 | `tooltip_seguro` | (correção) | — | cliente |
 | `diagnostico_lag` | (diagnóstico) | — | servidor |
 
@@ -84,7 +147,7 @@ Ignora o jogo pausado no singleplayer. No máximo 1 registro a cada `diagnostico
 
 ## Painel (0.2.0)
 
-`/hl` no chat ou a tecla **F8** (configurável em Controles → "HL Otimização") abrem uma tela com abas. Ela não
+`/hl` no chat ou a tecla **F8** (configurável em Controles → "HLO: HL Optimization") abrem uma tela com abas. Ela não
 pausa o jogo, então os números continuam se mexendo. Capturas em 1366×768: [`docs/tela/`](../docs/tela/).
 
 | Aba | O que mostra |
@@ -130,6 +193,27 @@ pausa o jogo, então os números continuam se mexendo. Capturas em 1366×768: [`
 
 Teste de antes e depois com números: [`docs/benchmark.md`](../docs/benchmark.md).
 
+### Matriz de testes da 0.3.0
+
+| Ambiente | Como | Resultado |
+|---|---|---|
+| Servidor de desenvolvimento só com o HLO + **cliente Forge 47.3.0 de produção sem HLO** | portablemc, Xvfb | entrou, jogou, recebeu os avisos da limpeza no chat, sem desconexão |
+| Mesmo servidor + cliente de produção **com o jar 0.3.0** | portablemc, Xvfb, F8 por XTEST | canal versão 2 aceito; tela com preset e custo do HLO (fotos em `docs/curseforge/`) |
+| Singleplayer no cliente de produção só com o HLO | `--join-world` | todos os mixins aplicados, F8 e `/hl status desempenho` em inglês |
+| Cliente de produção **0.2.2** + servidor 0.3.0 | portablemc, Xvfb | entrou (sem recusa de canal), F8 avisou que o servidor não tem o painel |
+| Servidor com `log.idioma=auto` e Java em português | `-Duser.language=pt` | log, `/hl` e config em português |
+| Modo seguro em mixin | `HLO_FALHAR=alcance_ativacao` (exceção forçada) | 3 erros no log, módulo desligado, servidor seguiu |
+| Modo seguro em evento | `HLO_FALHAR=diagnostico_lag` | 3 erros, módulo e vigia desligados, aviso no `/hl` |
+| Presets | 5 mods (leve), `preset=agressivo` na config | leve desliga os 4 módulos que mudam o jogo; agressivo liga `insercao_rapida` e usa limpeza a cada 5 min |
+
+**Não testado na 0.3.0** (e por quê):
+- **Servidor Forge de produção**: o instalador do servidor não pôde rodar neste ambiente; o servidor foi o de
+  desenvolvimento (mesmo código, nomes não ofuscados). O cliente foi de produção.
+- **Cliente com HLO + servidor totalmente sem HLO**: o ambiente de desenvolvimento não monta um servidor sem o
+  próprio mod. O caso equivalente (servidor sem o canal que o cliente procura) foi testado com o cliente 0.2.2.
+- **Packs pequenos e grandes de verdade** (com ModernFix, Canary, Neruina, ServerCore etc.): sem os jars desses
+  mods aqui. As detecções por modId foram conferidas no código, não com os mods rodando.
+
 
 - Compilado com ForgeGradle 6 contra Forge 1.20.1-47.3.0; o jar final foi reobfuscado para nomes SRG.
 - **Servidor dedicado** de teste: todos os mixins de servidor aplicados sem erro. Testes com comandos:
@@ -145,6 +229,21 @@ Teste de antes e depois com números: [`docs/benchmark.md`](../docs/benchmark.md
   e o funcionamento junto com o pack HL completo. Teste num mundo de cópia antes de usar no mundo principal.
 
 ## Histórico de versões
+
+### 0.3.0
+Preparação para virar um mod público (parte A do documento "módulos novos e preparação para publicar no CurseForge").
+- **Genérico**: descrição em inglês, nome exibido "HLO: HL Optimization" (modId igual), `limite_enxame.lista` vazia por
+  padrão (o pack HL usa a própria lista); a compatibilidade com Re-Avaritia e FAWS continua.
+- **Presets** `auto|leve|padrao|agressivo|personalizado`, escolhidos pela quantidade de mods (ver "Presets").
+- **Inglês por padrão** no log, `/hl`, avisos e config; português com Java em português ou `log.idioma=pt_br`.
+  Todos os ~310 textos passam por um mapa de tradução; um script confere que nenhum fica sem tradução e que os
+  `{}`/`%d` são os mesmos nas duas línguas.
+- **Modo seguro** (3 erros desligam o módulo até reiniciar) e **custo do HLO** em ms/tick no `/hl` e na tela.
+- Tela: preset na visão geral e custo do HLO na aba Desempenho. O canal passou a se chamar `hlotimizacao:painel2`, para versões diferentes do HLO não se recusarem na conexão.
+- `/hl limpar`: o aviso de 10 s agora vai para todos os jogadores (antes só quem digitou o comando via a resposta).
+- `update.json` + `updateJSONURL` (o Forge avisa no menu de mods quando sai versão nova), links de licença e
+  issues no `mods.toml`, arquivo `LICENSE` (MIT) no repositório e no jar.
+- Testes de lado (cliente sem HLO num servidor com HLO) e matriz de testes: ver "Lados" e "Matriz de testes".
 
 ### 0.2.2
 Inserção de itens em inventários grandes, a partir do `latest.log` de 31/10 (17:05–18:45): os 5 maiores

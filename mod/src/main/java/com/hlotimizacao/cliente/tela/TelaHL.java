@@ -284,6 +284,9 @@ public class TelaHL extends Screen {
         Linha sessao = texto((d.sessaoMs >= 0 ? t("sessao") + ": " + PainelStatus.tempo(d.sessaoMs) + "      " : "")
                 + t("modulos_resumo", plural(d.ligados, "ligado"), plural(d.desligados, "desligado")), BRANCO);
         sessao.clique = () -> trocarAba(Aba.MODULOS);
+        if (!d.preset.isEmpty()) {
+            texto(t("preset", d.preset, d.mods), CINZA);
+        }
         if (d.limpezaAtiva) {
             String quando = d.limpando ? t("limpando") : d.limpezaSegundos < 0 ? "-" : PainelStatus.tempo(d.limpezaSegundos * 1000);
             Linha l = texto(t("proxima_limpeza") + ": " + quando + " · " + PainelStatus.num(d.itensNoChao) + " " + t("itens_chao"), BRANCO);
@@ -357,6 +360,8 @@ public class TelaHL extends Screen {
         g.altura = 72;
         linhas.add(g);
         texto(t("min_max", Math.round(p.minMs), Math.round(p.maxMs)), CINZA);
+        Linha custo = texto(p.custoMs < 0 ? t("custo_medindo") : t("custo", String.format(PainelStatus.loc(), "%.3f", p.custoMs)), CINZA);
+        custo.dica = List.of(Component.translatable("hlotimizacao.tela.custo_dica"));
         if (!p.ultimoSalvamentoHora.isEmpty()) {
             texto(t("ultimo_salvamento") + ": " + PainelStatus.duracao(p.ultimoSalvamentoMs) + " " + t("as") + " " + p.ultimoSalvamentoHora, CINZA);
         }

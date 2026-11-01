@@ -33,21 +33,34 @@ minecraft {
 
     runs {
         configureEach {
-            workingDirectory project.file('run')
+            workingDirectory project.file(System.getenv('HLO_SO_HLO') ? 'run_so_hlo' : 'run')
             property 'forge.logging.markers', 'REGISTRIES'
             property 'forge.logging.console.level', 'debug'
             property 'mixin.debug.verbose', 'true'
             // Mods de terceiros (libs_teste) trazem refmaps em nomes SRG; em dev precisam ser convertidos.
             property 'mixin.env.remapRefMap', 'true'
             property 'mixin.env.refMapRemappingFile', "${projectDir}/build/createSrgToMcp/output.srg"
-            // Mixin do mod de testes (hlbench) que falha de proposito, para testar o detector de mixins com falha.
-            args '--mixin.config', 'hlbench.mixins.json'
+            // Teste do modo seguro: HLO_FALHAR=<modulo> faz o modulo lancar excecao nos pontos de entrada.
+            if (System.getenv('HLO_FALHAR')) {
+                property 'hlotimizacao.teste.falhar', System.getenv('HLO_FALHAR')
+            }
+            // Idioma do Java para o teste do log.idioma=auto: HLO_IDIOMA=pt
+            if (System.getenv('HLO_IDIOMA')) {
+                jvmArgs '-Duser.language=' + System.getenv('HLO_IDIOMA')
+            }
             mods {
                 "${mod_id}" {
                     source sourceSets.main
                 }
-                hlbench {
-                    source sourceSets.benchmark
+            }
+            // HLO_SO_HLO=1: so o HLO, sem o hlbench, na pasta run_so_hlo (teste de lado: servidor com HLO + cliente sem HLO).
+            if (!System.getenv('HLO_SO_HLO')) {
+                // Mixin do mod de testes (hlbench) que falha de proposito, para testar o detector de mixins com falha.
+                args '--mixin.config', 'hlbench.mixins.json'
+                mods {
+                    hlbench {
+                        source sourceSets.benchmark
+                    }
                 }
             }
         }
@@ -87,7 +100,7 @@ dependencies {
 
     // Re-Avaritia 1.4.2 para testar o modulo correcao_infinity_chest, se o jar estiver em libs_teste
     // (https://modrinth.com/mod/re-avaritia). O mod em si nao depende dele.
-    if (file('libs_teste/Re-Avaritia-forge-1.20.1-1.4.2-release.jar').exists()) {
+    if (file('libs_teste/Re-Avaritia-forge-1.20.1-1.4.2-release.jar').exists() && !System.getenv('HLO_SO_HLO')) {
         def avaritia = fg.deobf('local:Re-Avaritia-forge-1.20.1:1.4.2-release')
         runtimeOnly avaritia
         benchmarkCompileOnly avaritia
@@ -131,4 +144,11 @@ tasks.withType(JavaCompile).configureEach {
 // Permite mandar comandos (ex.: "stop") para o servidor de teste pelo terminal.
 tasks.matching { it.name == 'runServer' }.configureEach {
     standardInput = System.in
+}
+
+// Licenca MIT dentro do jar.
+tasks.named('jar') {
+    from(rootProject.file('../LICENSE')) {
+        rename { 'LICENSE_hlotimizacao' }
+    }
 }

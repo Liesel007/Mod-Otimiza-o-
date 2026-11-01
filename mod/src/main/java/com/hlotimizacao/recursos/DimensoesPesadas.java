@@ -1,5 +1,6 @@
 package com.hlotimizacao.recursos;
 
+import com.hlotimizacao.config.Msg;
 import com.hlotimizacao.config.Config;
 import com.hlotimizacao.config.Modulo;
 import com.hlotimizacao.mixin.lag.LevelAccessor;
@@ -73,13 +74,12 @@ public final class DimensoesPesadas {
         if (nome.length() > 22) {
             nome = nome.substring(0, 21) + "…";
         }
-        String curto = String.format("%s: %d entid., %d itens%s", nome, novo.entidades(), novo.itens(),
-                novo.spawners() > 0 ? ", " + novo.spawners() + " spawners" : "");
+        String curto = Msg.f("{}: {} entid., {} itens", nome, novo.entidades(), novo.itens())
+                + (novo.spawners() > 0 ? Msg.f(", {} spawners", novo.spawners()) : "");
         Avisos.substituir("dimensao:" + dimensao, curto,
-                dimensao + ": " + novo.entidades() + " entidades, " + novo.itens() + " itens no chao"
-                        + (novo.spawners() >= 0 ? ", " + novo.spawners() + " spawners ativos" : "") + " (maior quantidade vista nesta sessao). "
-                        + "Entidades e itens demais numa dimensao deixam o servidor lento, mesmo sem jogador "
-                        + "por perto se os chunks estiverem carregados. Use /hl limpar para os itens no chao e remova spawners que nao usa. "
-                        + "Limite do aviso: " + LIMITE_ENTIDADES + " entidades ou " + LIMITE_ITENS + " itens.");
+                Msg.f("{}: {} entidades, {} itens no chao", dimensao, novo.entidades(), novo.itens())
+                        + (novo.spawners() >= 0 ? Msg.f(", {} spawners ativos", novo.spawners()) : "") + " "
+                        + Msg.f("(maior quantidade vista nesta sessao). Entidades e itens demais numa dimensao deixam o servidor lento, mesmo sem jogador por perto se os chunks estiverem carregados. Use /hl limpar para os itens no chao e remova spawners que nao usa. Limite do aviso: {} entidades ou {} itens.",
+                        LIMITE_ENTIDADES, LIMITE_ITENS));
     }
 }

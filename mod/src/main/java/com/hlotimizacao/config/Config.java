@@ -2,8 +2,6 @@ package com.hlotimizacao.config;
 
 import net.minecraftforge.fml.loading.FMLPaths;
 import net.minecraftforge.fml.loading.LoadingModList;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.Reader;
@@ -25,7 +23,7 @@ import java.util.stream.Stream;
  * em vez do sistema de config do Forge (que so carrega depois).
  */
 public final class Config {
-    public static final Logger LOGGER = LoggerFactory.getLogger("HL Otimizacao");
+    public static final Log LOGGER = new Log("HLO");
     private static final String ARQUIVO = "hlotimizacao.properties";
     public static final String URL_PROJETO = "https://github.com/Liesel007/Mod-Otimiza-o-";
 
@@ -33,6 +31,7 @@ public final class Config {
     private static final Map<Modulo, String> MOTIVOS = new EnumMap<>(Modulo.class);
     private static final Map<Modulo, String> MOTIVOS_CURTOS = new EnumMap<>(Modulo.class);
     private static final Map<Modulo, String> VALORES = new EnumMap<>(Modulo.class);
+    private static final java.util.Set<Modulo> NAO_NECESSARIO = java.util.EnumSet.noneOf(Modulo.class);
     /** Valores de modulo mudados pela tela nesta sessao (valem depois de reiniciar). */
     private static final Map<Modulo, String> PENDENTES = new EnumMap<>(Modulo.class);
 
@@ -92,7 +91,11 @@ public final class Config {
     private static Set<String> insercaoIgnorar = Set.of();
     /** Muda a cada leitura dos valores, para quem guarda cache (ex.: excecoes por tipo de entidade). */
     private static volatile int versao;
-    private static final String ENXAME_PADRAO = "chaospersists:ant=8,chaospersists:rainbow_ant=4,chaospersists:unstable_ant=4,chaospersists:butterfly=6";
+    /** Vazio para o publico; modpacks escrevem a propria lista (ex.: o HL usa chaospersists:ant=8,...). */
+    private static final String ENXAME_PADRAO = "";
+    private static Preset preset = Preset.PADRAO;
+    private static boolean presetAutomatico = true;
+    private static int modsCarregados;
     private static final String EXCECOES_PADRAO = "minecraft:ender_dragon,minecraft:wither,minecraft:elder_guardian,minecraft:warden";
     private static Set<String> salvamentoSerializarClasses = Set.of();
     private static int limpezaIntervaloMin = 10;
@@ -117,14 +120,26 @@ public final class Config {
         carregado = true;
         Path caminho = pastaConfig().resolve(ARQUIVO);
         Properties props = lerArquivo(caminho);
+        Msg.definirIdioma(props.getProperty("log.idioma", "auto"));
 
         boolean faltando = false;
+        LoadingModList lista = LoadingModList.get();
+        modsCarregados = lista == null ? 0 : lista.getMods().size();
+        String textoPreset = props.getProperty("preset");
+        if (textoPreset == null) {
+            faltando = true;
+            textoPreset = "auto";
+            props.setProperty("preset", textoPreset);
+        }
+        Preset escolhido = Preset.deTexto(textoPreset);
+        presetAutomatico = escolhido == null;
+        preset = escolhido != null ? escolhido : Preset.porQuantidade(modsCarregados);
         for (Modulo modulo : Modulo.values()) {
             String chave = "modulo." + modulo.chave;
             String valor = props.getProperty(chave);
             if (valor == null) {
                 faltando = true;
-                valor = modulo == Modulo.INSERCAO_RAPIDA ? "off" : "auto"; // opcional: so liga quem pedir
+                valor = "auto";
                 props.setProperty(chave, valor);
             }
             decidir(modulo, valor.trim().toLowerCase());
@@ -171,9 +186,9 @@ public final class Config {
         lagToleranciaS = lerInt(props, "diagnostico_lag.tolerancia_inicio_s", 30, 0, 3600);
         salvamentoSerializarClasses = lista(props, "salvamento_assincrono.serializar_classes", "");
         lagIgnorarMixins = lista(props, "diagnostico_lag.ignorar_mixins", "chrono:scalePlayerGameplayTick");
-        ativacaoHorizontal = lerInt(props, "alcance_ativacao.horizontal", 48, 8, 512);
+        ativacaoHorizontal = lerInt(props, "alcance_ativacao.horizontal", preset.valor(48, 40), 8, 512);
         ativacaoVertical = lerInt(props, "alcance_ativacao.vertical", 48, 8, 512);
-        ativacaoIntervalo = lerInt(props, "alcance_ativacao.intervalo", 20, 2, 200);
+        ativacaoIntervalo = lerInt(props, "alcance_ativacao.intervalo", preset.valor(20, 30), 2, 200);
         ativacaoProtegerItens = Boolean.parseBoolean(props.getProperty("alcance_ativacao.proteger_itens", "true").trim());
         ativacaoProtegerAldeoes = Boolean.parseBoolean(props.getProperty("alcance_ativacao.proteger_aldeoes", "true").trim());
         ativacaoProtegerSemJogador = Boolean.parseBoolean(props.getProperty("alcance_ativacao.proteger_areas_sem_jogador", "true").trim());
@@ -198,7 +213,7 @@ public final class Config {
         insercaoOrcamento = Boolean.parseBoolean(props.getProperty("insercao_rapida.orcamento", "false").trim());
         insercaoIgnorar = lista(props, "insercao_rapida.ignorar", "");
         versao++;
-        limpezaIntervaloMin = lerInt(props, "limpeza_itens.intervalo_min", 10, 1, 1440);
+        limpezaIntervaloMin = lerInt(props, "limpeza_itens.intervalo_min", preset.valor(10, 5), 1, 1440);
         Set<Integer> avisos = new java.util.TreeSet<>();
         for (String aviso : lista(props, "limpeza_itens.avisos_s", "60,30,10,5")) {
             try {
@@ -222,9 +237,9 @@ public final class Config {
                 {"diagnostico_lag.tolerancia_inicio_s", Integer.toString(lagToleranciaS)},
                 {"salvamento_assincrono.serializar_classes", String.join(",", salvamentoSerializarClasses)},
                 {"diagnostico_lag.ignorar_mixins", "chrono:scalePlayerGameplayTick"},
-                {"alcance_ativacao.horizontal", "48"},
+                {"alcance_ativacao.horizontal", "auto"},
                 {"alcance_ativacao.vertical", "48"},
-                {"alcance_ativacao.intervalo", "20"},
+                {"alcance_ativacao.intervalo", "auto"},
                 {"alcance_ativacao.proteger_itens", "true"},
                 {"alcance_ativacao.proteger_aldeoes", "true"},
                 {"alcance_ativacao.proteger_areas_sem_jogador", "true"},
@@ -237,7 +252,7 @@ public final class Config {
                 {"insercao_rapida.varreduras_max_por_tick", "4"},
                 {"insercao_rapida.orcamento", "false"},
                 {"insercao_rapida.ignorar", ""},
-                {"limpeza_itens.intervalo_min", Integer.toString(limpezaIntervaloMin)},
+                {"limpeza_itens.intervalo_min", "auto"},
                 {"limpeza_itens.avisos_s", "60,30,10,5"},
                 {"limpeza_itens.idade_minima_s", Integer.toString(limpezaIdadeMinimaS)},
                 {"limpeza_itens.proteger_itens_com_nbt", "true"},
@@ -262,37 +277,55 @@ public final class Config {
         switch (valor) {
             case "off", "false", "desligado" -> {
                 ativo = false;
-                motivo = "desligado na config";
-                curto = "desligado na config";
+                motivo = Msg.t("desligado na config");
+                curto = motivo;
             }
             case "on", "true", "ligado" -> {
                 ativo = true;
-                motivo = conflito.map(id -> "forcado na config (atencao: " + id + " tambem esta instalado)").orElse("ligado na config");
-                curto = conflito.map(id -> "forçado (" + nomeDoMod(id) + " também instalado)").orElse("ligado na config");
+                motivo = conflito.map(id -> Msg.f("forcado na config (atencao: {} tambem esta instalado)", id)).orElse(Msg.t("ligado na config"));
+                curto = conflito.map(id -> Msg.f("forçado ({} também instalado)", nomeDoMod(id))).orElse(Msg.t("ligado na config"));
             }
             default -> {
-                if (modulo == Modulo.INSERCAO_RAPIDA) {
+                if (preset == Preset.LEVE && Preset.MUDAM_COMPORTAMENTO.contains(modulo)) {
                     ativo = false;
-                    motivo = "desligado por padrao (opcional; use on para ligar)";
-                    curto = "opcional: desligado (use on)";
+                    motivo = Msg.t("desligado pelo preset leve (muda o comportamento do jogo; use on para ligar)");
+                    curto = Msg.t("preset leve: desligado (muda o jogo)");
+                    break;
+                }
+                if (modulo == Modulo.INSERCAO_RAPIDA && preset != Preset.AGRESSIVO) {
+                    ativo = false;
+                    motivo = Msg.t("desligado por padrao (opcional; ligado so no preset agressivo; use on para ligar)");
+                    curto = Msg.t("opcional: desligado (use on)");
                     break;
                 }
                 ativo = conflito.isEmpty();
-                motivo = conflito.map(id -> "desligado automaticamente: " + id + " ja faz isso").orElse("ligado (auto)");
-                curto = conflito.map(id -> "desligado: " + nomeDoMod(id) + " já faz isso").orElse("ligado (auto)");
+                motivo = conflito.map(id -> Msg.f("desligado automaticamente: {} ja faz isso", id)).orElse(Msg.t("ligado (auto)"));
+                curto = conflito.map(id -> Msg.f("desligado: {} já faz isso", nomeDoMod(id))).orElse(Msg.t("ligado (auto)"));
             }
         }
         if (modulo == Modulo.CORRECAO_FASTASYNCWORLDSAVE && ativo && !modInstalado("fastasyncworldsave")) {
             ativo = false;
-            motivo = "nao necessario: fastasyncworldsave nao esta instalado";
-            curto = "não necessário (sem o Fast Async World Save)";
+            motivo = Msg.t("nao necessario: fastasyncworldsave nao esta instalado");
+            curto = Msg.t("não necessário (sem o Fast Async World Save)");
         }
         if (modulo == Modulo.CORRECAO_INFINITY_CHEST && ativo && !modInstalado("avaritia")) {
             ativo = false;
-            motivo = "nao necessario: avaritia (Re-Avaritia) nao esta instalado";
-            curto = "não necessário (sem o Re-Avaritia)";
+            motivo = Msg.t("nao necessario: avaritia (Re-Avaritia) nao esta instalado");
+            curto = Msg.t("não necessário (sem o Re-Avaritia)");
         }
         ATIVOS.put(modulo, ativo);
+        MOTIVOS.put(modulo, motivo);
+        MOTIVOS_CURTOS.put(modulo, curto);
+        if (!ativo && (modulo == Modulo.CORRECAO_FASTASYNCWORLDSAVE || modulo == Modulo.CORRECAO_INFINITY_CHEST)
+                && motivo.equals(Msg.t(modulo == Modulo.CORRECAO_FASTASYNCWORLDSAVE ? "nao necessario: fastasyncworldsave nao esta instalado"
+                : "nao necessario: avaritia (Re-Avaritia) nao esta instalado"))) {
+            NAO_NECESSARIO.add(modulo);
+        }
+    }
+
+    /** Modo seguro: desliga um modulo durante o jogo (ate reiniciar), sem mexer no arquivo. */
+    public static synchronized void desligarEmExecucao(Modulo modulo, String motivo, String curto) {
+        ATIVOS.put(modulo, false);
         MOTIVOS.put(modulo, motivo);
         MOTIVOS_CURTOS.put(modulo, curto);
     }
@@ -342,18 +375,20 @@ public final class Config {
                 }
             }
             if (modulo == null || !(v.equals("auto") || v.equals("on") || v.equals("off"))) {
-                return "valor invalido para " + chave;
+                return Msg.f("valor invalido para {}", chave);
             }
         } else if (!EDITAVEIS.containsKey(chave)) {
-            return "chave nao editavel: " + chave;
-        } else if (chave.endsWith("_min") || chave.endsWith("_s") && !chave.endsWith("avisos_s") || chave.endsWith("_ms") || chave.endsWith("max_por_tick")) {
+            return Msg.f("chave nao editavel: {}", chave);
+        } else if (!v.equals("auto") && (chave.endsWith("_min") || chave.endsWith("_s") && !chave.endsWith("avisos_s") || chave.endsWith("_ms")
+                || chave.endsWith("max_por_tick") || chave.endsWith("horizontal") || chave.endsWith("vertical") || chave.endsWith("intervalo")
+                || chave.endsWith("limite_slots") || chave.endsWith("raio_chunks"))) {
             try {
                 Integer.parseInt(v);
             } catch (NumberFormatException e) {
-                return chave + " precisa ser um numero";
+                return Msg.f("{} precisa ser um numero", chave);
             }
         } else if (chave.startsWith("limpeza_itens.proteger") && !(v.equals("true") || v.equals("false"))) {
-            return chave + " precisa ser true ou false";
+            return Msg.f("{} precisa ser true ou false", chave);
         }
         Path caminho = pastaConfig().resolve(ARQUIVO);
         Properties props = lerArquivo(caminho);
@@ -377,7 +412,7 @@ public final class Config {
 
     /** "nao necessario": desligado porque o mod que ele corrige nao esta instalado. */
     public static boolean naoNecessario(Modulo modulo) {
-        return MOTIVOS.getOrDefault(modulo, "").startsWith("nao necessario");
+        return NAO_NECESSARIO.contains(modulo);
     }
 
     /** Nome de exibicao de um mod pela lista de mods (cai no id se nao achar). */
@@ -411,6 +446,21 @@ public final class Config {
     public static int lagIntervaloS() {
         carregar();
         return lagIntervaloS;
+    }
+
+    public static Preset preset() {
+        carregar();
+        return preset;
+    }
+
+    public static boolean presetAutomatico() {
+        carregar();
+        return presetAutomatico;
+    }
+
+    public static int modsCarregados() {
+        carregar();
+        return modsCarregados;
     }
 
     public static int versao() {
@@ -547,55 +597,60 @@ public final class Config {
 
     private static void salvar(Path caminho, Properties props) {
         StringBuilder sb = new StringBuilder();
-        sb.append("# HL Otimizacao\n");
-        sb.append("# Valores dos modulos: auto (padrao), on, off.\n");
-        sb.append("# auto = ligado, a menos que o mod original que faz o mesmo esteja instalado.\n");
-        sb.append("# Mudancas so valem depois de reiniciar o jogo.\n\n");
+        sb.append(Msg.t("# HLO: HL Otimizacao\n"));
+        sb.append(Msg.t("# Valores dos modulos: auto (padrao), on, off.\n"));
+        sb.append(Msg.t("# auto = ligado, a menos que o mod original que faz o mesmo esteja instalado.\n"));
+        sb.append(Msg.t("# Mudancas so valem depois de reiniciar o jogo.\n\n"));
+        sb.append(Msg.t("# Preset: auto (pela quantidade de mods: ate 120 = leve, ate 250 = padrao, mais = agressivo), leve, padrao, agressivo ou personalizado.\n"));
+        sb.append(Msg.t("# O preset so define valores padrao; o que estiver escrito aqui tem prioridade. Valores 'auto' abaixo seguem o preset.\n"));
+        sb.append("preset=").append(props.getProperty("preset", "auto")).append("\n\n");
+        sb.append(Msg.t("# Idioma do log e dos textos do mod: auto (o do Java), en_us ou pt_br.\n"));
+        sb.append("log.idioma=").append(props.getProperty("log.idioma", "auto")).append("\n\n");
         for (Modulo modulo : Modulo.values()) {
-            sb.append("# ").append(modulo.descricao).append('\n');
+            sb.append("# ").append(modulo.texto()).append('\n');
             if (!modulo.modsConflitantes.isEmpty()) {
-                sb.append("# Desliga sozinho (em auto) se estiver instalado: ").append(String.join(", ", modulo.modsConflitantes)).append('\n');
+                sb.append(Msg.t("# Desliga sozinho (em auto) se estiver instalado: ")).append(String.join(", ", modulo.modsConflitantes)).append('\n');
             }
             sb.append("modulo.").append(modulo.chave).append('=').append(props.getProperty("modulo." + modulo.chave)).append("\n\n");
         }
-        sb.append("# FPS maximo com a janela sem foco e minimizada (modulo fps_sem_foco).\n");
+        sb.append(Msg.t("# FPS maximo com a janela sem foco e minimizada (modulo fps_sem_foco).\n"));
         sb.append("fps_sem_foco.limite=").append(props.getProperty("fps_sem_foco.limite")).append('\n');
         sb.append("fps_sem_foco.limite_minimizado=").append(props.getProperty("fps_sem_foco.limite_minimizado")).append("\n\n");
-        sb.append("# Tempo de tick (ms) a partir do qual o diagnostico_lag registra o travamento,\n");
-        sb.append("# e intervalo minimo (s) entre dois registros.\n");
+        sb.append(Msg.t("# Tempo de tick (ms) a partir do qual o diagnostico_lag registra o travamento,\n"));
+        sb.append(Msg.t("# e intervalo minimo (s) entre dois registros.\n"));
         sb.append("diagnostico_lag.limite_ms=").append(props.getProperty("diagnostico_lag.limite_ms")).append('\n');
         sb.append("diagnostico_lag.intervalo_s=").append(props.getProperty("diagnostico_lag.intervalo_s")).append('\n');
-        sb.append("# Segundos sem registrar depois de abrir o mundo (e depois do primeiro jogador entrar),\n");
-        sb.append("# enquanto classes e chunks ainda estao carregando.\n");
+        sb.append(Msg.t("# Segundos sem registrar depois de abrir o mundo (e depois do primeiro jogador entrar),\n"));
+        sb.append(Msg.t("# enquanto classes e chunks ainda estao carregando.\n"));
         sb.append("diagnostico_lag.tolerancia_inicio_s=").append(props.getProperty("diagnostico_lag.tolerancia_inicio_s")).append('\n');
-        sb.append("# Mixins que so repassam a chamada e nunca sao a causa de um travamento (mod:metodo, separados por virgula).\n");
+        sb.append(Msg.t("# Mixins que so repassam a chamada e nunca sao a causa de um travamento (mod:metodo, separados por virgula).\n"));
         sb.append("diagnostico_lag.ignorar_mixins=").append(props.getProperty("diagnostico_lag.ignorar_mixins")).append("\n\n");
-        sb.append("# salvamento_assincrono: SavedData que sobrescrevem save(File) sao gravados no thread principal, do jeito do mod.\n");
-        sb.append("# O log mostra quais classes sao essas. Classes listadas aqui (nomes completos, separados por virgula) passam\n");
-        sb.append("# a ser serializadas com save(CompoundTag) e gravadas em outra thread, IGNORANDO o save(File) do mod.\n");
-        sb.append("# So use se souber que o save(File) da classe apenas chama o do Minecraft (risco de perder dados se fizer mais).\n");
+        sb.append(Msg.t("# salvamento_assincrono: SavedData que sobrescrevem save(File) sao gravados no thread principal, do jeito do mod.\n"));
+        sb.append(Msg.t("# O log mostra quais classes sao essas. Classes listadas aqui (nomes completos, separados por virgula) passam\n"));
+        sb.append(Msg.t("# a ser serializadas com save(CompoundTag) e gravadas em outra thread, IGNORANDO o save(File) do mod.\n"));
+        sb.append(Msg.t("# So use se souber que o save(File) da classe apenas chama o do Minecraft (risco de perder dados se fizer mais).\n"));
         sb.append("salvamento_assincrono.serializar_classes=").append(props.getProperty("salvamento_assincrono.serializar_classes")).append("\n\n");
-        sb.append("# alcance_ativacao: entidades a mais de 'horizontal' blocos (ou 'vertical') de todos os jogadores sao processadas\n");
-        sb.append("# so 1 vez a cada 'intervalo' ticks. Nunca: jogadores, projeteis, veiculos/passageiros, chefes, entidades com nome,\n");
-        sb.append("# domesticadas, em raid, machucadas ou com alvo, e (opcoes) itens, aldeoes e areas so carregadas por chunk loader.\n");
+        sb.append(Msg.t("# alcance_ativacao: entidades a mais de 'horizontal' blocos (ou 'vertical') de todos os jogadores sao processadas\n"));
+        sb.append(Msg.t("# so 1 vez a cada 'intervalo' ticks. Nunca: jogadores, projeteis, veiculos/passageiros, chefes, entidades com nome,\n"));
+        sb.append(Msg.t("# domesticadas, em raid, machucadas ou com alvo, e (opcoes) itens, aldeoes e areas so carregadas por chunk loader.\n"));
         for (String chave : new String[]{"horizontal", "vertical", "intervalo", "proteger_itens", "proteger_aldeoes", "proteger_areas_sem_jogador",
                 "excecoes_entidades", "excecoes_mods", "dimensoes_ignoradas"}) {
             sb.append("alcance_ativacao.").append(chave).append('=').append(props.getProperty("alcance_ativacao." + chave)).append('\n');
         }
-        sb.append("\n# limite_enxame: spawn natural, de geracao de chunk e de spawner e cancelado quando ja ha 'numero' entidades daquele\n");
-        sb.append("# tipo no chunk e nos vizinhos ate raio_chunks. Nunca vale para ovo, comando ou balde, e nunca remove entidades.\n");
+        sb.append('\n').append(Msg.t("# limite_enxame: spawn natural, de geracao de chunk e de spawner e cancelado quando ja ha 'numero' entidades daquele\n"));
+        sb.append(Msg.t("# tipo no chunk e nos vizinhos ate raio_chunks. Nunca vale para ovo, comando ou balde, e nunca remove entidades.\n"));
         sb.append("limite_enxame.lista=").append(props.getProperty("limite_enxame.lista")).append('\n');
         sb.append("limite_enxame.raio_chunks=").append(props.getProperty("limite_enxame.raio_chunks")).append("\n\n");
-        sb.append("# insercao_rapida (modulo desligado por padrao): inventarios com limite_slots ou mais usam um cache de onde o item\n");
-        sb.append("# coube; orcamento=true recusa a insercao (a maquina tenta no proximo tick) depois de varreduras_max_por_tick varreduras.\n");
+        sb.append(Msg.t("# insercao_rapida (modulo desligado por padrao): inventarios com limite_slots ou mais usam um cache de onde o item\n"));
+        sb.append(Msg.t("# coube; orcamento=true recusa a insercao (a maquina tenta no proximo tick) depois de varreduras_max_por_tick varreduras.\n"));
         for (String chave : new String[]{"limite_slots", "varreduras_max_por_tick", "orcamento", "ignorar"}) {
             sb.append("insercao_rapida.").append(chave).append('=').append(props.getProperty("insercao_rapida." + chave)).append('\n');
         }
         sb.append('\n');
-        sb.append("# limpeza_itens: a cada intervalo_min minutos apaga os itens soltos no chao, com avisos no chat antes (avisos_s).\n");
-        sb.append("# Nunca apaga: itens com menos de idade_minima_s segundos no chao, drops da morte de jogadores, itens_protegidos,\n");
-        sb.append("# ovos de spawn, shulker boxes, itens encantados/com nome/com conteudo (proteger_itens_com_nbt) e itens sobre\n");
-        sb.append("# funis ou blocos que recebem itens (proteger_sobre_coletores). dimensoes vazio = todas. /hl recarregar rele estes valores.\n");
+        sb.append(Msg.t("# limpeza_itens: a cada intervalo_min minutos apaga os itens soltos no chao, com avisos no chat antes (avisos_s).\n"));
+        sb.append(Msg.t("# Nunca apaga: itens com menos de idade_minima_s segundos no chao, drops da morte de jogadores, itens_protegidos,\n"));
+        sb.append(Msg.t("# ovos de spawn, shulker boxes, itens encantados/com nome/com conteudo (proteger_itens_com_nbt) e itens sobre\n"));
+        sb.append(Msg.t("# funis ou blocos que recebem itens (proteger_sobre_coletores). dimensoes vazio = todas. /hl recarregar rele estes valores.\n"));
         for (String chave : new String[]{"intervalo_min", "avisos_s", "idade_minima_s", "proteger_itens_com_nbt", "proteger_sobre_coletores",
                 "itens_protegidos", "dimensoes", "max_por_tick"}) {
             sb.append("limpeza_itens.").append(chave).append('=').append(props.getProperty("limpeza_itens." + chave)).append('\n');

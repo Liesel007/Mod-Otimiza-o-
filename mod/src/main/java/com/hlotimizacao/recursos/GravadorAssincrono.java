@@ -1,5 +1,6 @@
 package com.hlotimizacao.recursos;
 
+import com.hlotimizacao.config.Msg;
 import com.hlotimizacao.config.Config;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtIo;
@@ -59,8 +60,7 @@ public final class GravadorAssincrono {
         if (antes == 0) {
             return 0;
         }
-        avisarDesligando("[salvamento_assincrono] Desligando com " + antes + " gravacao(oes) pendente(s); esperando ate "
-                + ESPERA_AO_DESLIGAR_S + " s");
+        avisarDesligando(Msg.f("[salvamento_assincrono] Desligando com {} gravacao(oes) pendente(s); esperando ate {} s", antes, ESPERA_AO_DESLIGAR_S));
         try {
             EXECUTOR.submit(() -> {
             }).get(ESPERA_AO_DESLIGAR_S, TimeUnit.SECONDS);
@@ -69,8 +69,8 @@ public final class GravadorAssincrono {
         }
         int depois = PENDENTES.get();
         avisarDesligando(depois == 0
-                ? "[salvamento_assincrono] Todas as gravacoes pendentes foram concluidas"
-                : "[salvamento_assincrono] " + depois + " gravacao(oes) NAO terminaram antes de o processo fechar");
+                ? Msg.t("[salvamento_assincrono] Todas as gravacoes pendentes foram concluidas")
+                : Msg.f("[salvamento_assincrono] {} gravacao(oes) NAO terminaram antes de o processo fechar", depois));
         return depois;
     }
 

@@ -1,5 +1,6 @@
 package com.hlotimizacao.recursos;
 
+import com.hlotimizacao.config.Msg;
 import com.hlotimizacao.config.Config;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
@@ -71,9 +72,10 @@ public final class LimpezaItens {
     private static synchronized void agendar(long daquiMs) {
         proximaLimpezaMs = System.currentTimeMillis() + Math.max(1, daquiMs);
         AVISOS_DADOS.clear();
-        // Agendada com pouco tempo (ex.: /hl limpar, 10 s): os avisos maiores que isso nao fazem sentido.
+        // Agendada com pouco tempo (ex.: /hl limpar, 10 s): os avisos maiores que isso nao fazem sentido. O aviso
+        // igual ao tempo (10 s) vai para todos: a resposta do comando so chega para quem o digitou.
         for (int aviso : Config.limpezaAvisosS()) {
-            if (aviso * 1000L >= daquiMs) {
+            if (aviso * 1000L > daquiMs) {
                 AVISOS_DADOS.add(aviso);
             }
         }
@@ -122,7 +124,7 @@ public final class LimpezaItens {
         if (anunciar != null) {
             int faltamS = anunciar;
             avisar(server, Component.literal("[HL] ").withStyle(ChatFormatting.GOLD)
-                    .append(Component.literal("Os itens no chao serao apagados em " + faltamS + " segundo" + (faltamS == 1 ? "" : "s") + "!")
+                    .append(Component.literal(Msg.f(faltamS == 1 ? "Os itens no chao serao apagados em {} segundo!" : "Os itens no chao serao apagados em {} segundos!", faltamS))
                             .withStyle(ChatFormatting.YELLOW)));
         }
     }
@@ -167,7 +169,7 @@ public final class LimpezaItens {
             if (motivo != null) {
                 protegidosNestaLimpeza++;
                 PROTEGIDOS.incrementAndGet();
-                MOTIVOS.merge(motivo.startsWith("recente") ? "recente" : motivo, 1, Integer::sum);
+                MOTIVOS.merge(motivo.indexOf(" (") > 0 ? motivo.substring(0, motivo.indexOf(" (")) : motivo, 1, Integer::sum);
                 if (Config.LOGGER.isDebugEnabled() && protegidosNestaLimpeza <= 5) {
                     Config.LOGGER.debug("[limpeza_itens] protegido: {} em {} ({})", item.getItem(), item.blockPosition(), motivo);
                 }
@@ -186,7 +188,7 @@ public final class LimpezaItens {
             LIMPEZAS.incrementAndGet();
             ITENS_REMOVIDOS.addAndGet(itensNestaLimpeza);
             avisar(server, Component.literal("[HL] ").withStyle(ChatFormatting.GOLD)
-                    .append(Component.literal(String.format("%d pilha(s) de itens (%d itens) removida(s) do chao.", removidosNestaLimpeza, itensNestaLimpeza))
+                    .append(Component.literal(String.format(Msg.locale(), Msg.t("%d pilha(s) de itens (%d itens) removida(s) do chao."), removidosNestaLimpeza, itensNestaLimpeza))
                             .withStyle(ChatFormatting.YELLOW)));
             Config.LOGGER.info("[limpeza_itens] {} pilha(s) ({} itens) removida(s), {} protegida(s) {}; {} ms em {} tick(s), no maximo {} ms num tick",
                     removidosNestaLimpeza, itensNestaLimpeza, protegidosNestaLimpeza, MOTIVOS, String.format("%.1f", nsNestaLimpeza / 1e6),
@@ -203,25 +205,25 @@ public final class LimpezaItens {
     static String motivoProtecao(ItemEntity entidade) {
         ItemStack stack = entidade.getItem();
         if (entidade.getAge() < Config.limpezaIdadeMinimaS() * 20) {
-            return "recente (idade " + entidade.getAge() + " ticks)"; // inclui idade negativa (itens marcados para nao sumir)
+            return Msg.f("recente (idade {} ticks)", entidade.getAge()); // inclui idade negativa (itens marcados para nao sumir)
         }
         if (entidade.getPersistentData().getBoolean(MARCA_MORTE)) {
-            return "drop de morte";
+            return Msg.t("drop de morte");
         }
         ResourceLocation id = ForgeRegistries.ITEMS.getKey(stack.getItem());
         String idTexto = id == null ? "" : id.toString();
         if (Config.limpezaItensProtegidos().contains(idTexto) || stack.getItem() instanceof SpawnEggItem || idTexto.endsWith("shulker_box")) {
-            return "item protegido";
+            return Msg.t("item protegido");
         }
         if (Config.limpezaProtegerNbt() && (stack.isEnchanted() || stack.hasCustomHoverName()
                 || (stack.getTag() != null && stack.getTag().contains("BlockEntityTag")))) {
-            return "encantado, com nome ou com conteudo";
+            return Msg.t("encantado, com nome ou com conteudo");
         }
         if (Config.limpezaProtegerColetores()) {
             BlockPos abaixo = entidade.blockPosition().below();
             BlockEntity be = entidade.level().isLoaded(abaixo) ? entidade.level().getBlockEntity(abaixo) : null;
             if (be instanceof Hopper || (be != null && be.getCapability(ForgeCapabilities.ITEM_HANDLER).isPresent())) {
-                return "sobre funil ou coletor"; // fazendas que usam itens no chao
+                return Msg.t("sobre funil ou coletor"); // fazendas que usam itens no chao
             }
         }
         return null;
@@ -241,7 +243,7 @@ public final class LimpezaItens {
         }
         agendar(intervaloMs());
         avisar(server, Component.literal("[HL] ").withStyle(ChatFormatting.GOLD)
-                .append(Component.literal("A limpeza de itens foi cancelada.").withStyle(ChatFormatting.YELLOW)));
+                .append(Component.literal(Msg.t("A limpeza de itens foi cancelada.")).withStyle(ChatFormatting.YELLOW)));
         return true;
     }
 
@@ -282,8 +284,8 @@ public final class LimpezaItens {
                 }
             }
         }
-        linhas.add(limpando ? "Limpando agora." : String.format("Proxima limpeza em %d min %02d s.", faltam / 60, faltam % 60));
-        linhas.add(String.format("Itens no chao agora: %d pilha(s), %d itens.", pilhas, itens));
+        linhas.add(limpando ? Msg.t("Limpando agora.") : String.format(Msg.t("Proxima limpeza em %d min %02d s."), faltam / 60, faltam % 60));
+        linhas.add(String.format(Msg.locale(), Msg.t("Itens no chao agora: %d pilha(s), %d itens."), pilhas, itens));
         return linhas;
     }
 }

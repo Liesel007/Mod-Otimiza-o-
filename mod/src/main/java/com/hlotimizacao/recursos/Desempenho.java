@@ -106,6 +106,7 @@ public final class Desempenho {
             return;
         }
         emTick = false;
+        Custo.fimDoTick();
         long duracao = agora - inicioTickNs;
         synchronized (DURACAO_NS) {
             DURACAO_NS[indice] = duracao;

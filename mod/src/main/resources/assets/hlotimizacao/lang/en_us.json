@@ -1,11 +1,11 @@
 {
-  "key.categories.hlotimizacao": "HL Otimização",
-  "key.hlotimizacao.abrir": "Open the HL Otimização panel",
-  "hlotimizacao.tela.titulo": "HL Otimização",
-  "hlotimizacao.tela.titulo_versao": "HL Otimização %s",
-  "hlotimizacao.tela.sem_servidor": "This server does not have HL Otimização. Try /hl status if it has the command.",
-  "hlotimizacao.tela.toast": "HL Otimização",
-  "hlotimizacao.tela.toast_erro": "HL Otimização: error",
+  "key.categories.hlotimizacao": "HLO: HL Optimization",
+  "key.hlotimizacao.abrir": "Open the HLO panel",
+  "hlotimizacao.tela.titulo": "HLO: HL Optimization",
+  "hlotimizacao.tela.titulo_versao": "HLO %s",
+  "hlotimizacao.tela.sem_servidor": "This server does not have HLO, or has a different HLO version. Try /hl status if it has the command.",
+  "hlotimizacao.tela.toast": "HLO",
+  "hlotimizacao.tela.toast_erro": "HLO: error",
   "hlotimizacao.tela.confirmar": "Are you sure?",
   "hlotimizacao.tela.aba.geral": "Overview",
   "hlotimizacao.tela.aba.modulos": "Modules",
@@ -71,5 +71,9 @@
   "hlotimizacao.tela.desligado": "%s off",
   "hlotimizacao.tela.desligados": "%s off",
   "hlotimizacao.tela.travamento": "%s stall",
-  "hlotimizacao.tela.travamentos": "%s stalls"
+  "hlotimizacao.tela.travamentos": "%s stalls",
+  "hlotimizacao.tela.preset": "Preset: %s (%s mods)",
+  "hlotimizacao.tela.custo": "HLO cost: %s ms/tick",
+  "hlotimizacao.tela.custo_medindo": "HLO cost: measuring...",
+  "hlotimizacao.tela.custo_dica": "Average time per tick spent in HLO's own mixins and events (sampled, last 100 ticks)."
 }

@@ -1,5 +1,6 @@
 package com.hlotimizacao.recursos;
 
+import com.hlotimizacao.config.Msg;
 import com.hlotimizacao.config.Config;
 import com.hlotimizacao.config.Modulo;
 import net.minecraft.core.BlockPos;
@@ -52,7 +53,6 @@ public final class Insercao {
     private static final Map<String, Despejo> PIORES = new LinkedHashMap<>();
     /** Maquinas (posicoes) vistas despejando em cada inventario grande, na sessao inteira. */
     private static final Map<String, java.util.Set<BlockPos>> FONTES_POR_DESTINO = new HashMap<>();
-    private static final java.util.Locale PT = java.util.Locale.forLanguageTag("pt-BR");
 
     // ---------- estatisticas ----------
     public static final AtomicLong RAPIDAS = new AtomicLong();
@@ -77,22 +77,52 @@ public final class Insercao {
         if (originalNoTeste || destino == null || pilha.isEmpty()) {
             return null;
         }
-        if (Config.ativo(Modulo.DIAGNOSTICO_INSERCAO) && DiagnosticoLag.travando()) {
-            anotar(destino);
+        mexeu = false;
+        if (Config.ativo(Modulo.DIAGNOSTICO_INSERCAO) && !ModoSeguro.desligado(Modulo.DIAGNOSTICO_INSERCAO) && DiagnosticoLag.travando()) {
+            try {
+                anotar(destino);
+            } catch (RuntimeException e) {
+                ModoSeguro.falhou(Modulo.DIAGNOSTICO_INSERCAO, e);
+            }
         }
-        if (Config.ativo(Modulo.CORRECAO_INFINITY_CHEST) && ehChestHandler(destino)) {
-            ATALHO_AVARITIA.incrementAndGet();
-            // O ChestHandler.insertItem ignora o slot e guarda pela chave do item: e o mesmo que a varredura
-            // do Forge faria ao chegar no slot do item (ou no primeiro slot vazio), so que sem varrer.
-            return destino.insertItem(0, pilha, simular);
-        }
-        if (Config.ativo(Modulo.INSERCAO_RAPIDA) && naThreadDoServidor()) {
-            int slots = destino.getSlots();
-            if (slots >= Config.insercaoLimiteSlots() && !ignorado(destino)) {
-                return inserirRapido(destino, pilha, simular, slots);
+        Modulo modulo = null;
+        try {
+            if (Config.ativo(Modulo.CORRECAO_INFINITY_CHEST) && !ModoSeguro.desligado(Modulo.CORRECAO_INFINITY_CHEST) && ehChestHandler(destino)) {
+                modulo = Modulo.CORRECAO_INFINITY_CHEST;
+                ATALHO_AVARITIA.incrementAndGet();
+                // O ChestHandler.insertItem ignora o slot e guarda pela chave do item: e o mesmo que a varredura
+                // do Forge faria ao chegar no slot do item (ou no primeiro slot vazio), so que sem varrer.
+                return inserir(destino, 0, pilha, simular);
+            }
+            if (Config.ativo(Modulo.INSERCAO_RAPIDA) && !ModoSeguro.desligado(Modulo.INSERCAO_RAPIDA) && naThreadDoServidor()) {
+                int slots = destino.getSlots();
+                if (slots >= Config.insercaoLimiteSlots() && !ignorado(destino)) {
+                    modulo = Modulo.INSERCAO_RAPIDA;
+                    ModoSeguro.testar(modulo);
+                    return inserirRapido(destino, pilha, simular, slots);
+                }
+            }
+        } catch (RuntimeException e) {
+            if (modulo == null) {
+                throw e; // erro do proprio inventario (getSlots): o Forge daria o mesmo erro
+            }
+            ModoSeguro.falhou(modulo, e);
+            if (mexeu) {
+                // Ja entrou item de verdade: seguir pelo Forge com a pilha inteira duplicaria itens.
+                throw e;
             }
         }
         return null;
+    }
+
+    /** true depois de um insertItem nao simulado nesta insercao (ver o modo seguro em aoInserir). */
+    private static boolean mexeu;
+
+    private static ItemStack inserir(IItemHandler h, int slot, ItemStack pilha, boolean simular) {
+        if (!simular) {
+            mexeu = true;
+        }
+        return h.insertItem(slot, pilha, simular);
     }
 
     private static boolean naThreadDoServidor() {
@@ -178,15 +208,15 @@ public final class Insercao {
         if (DESPEJOS_NO_TRAVAMENTO.isEmpty()) {
             return null;
         }
-        StringBuilder sb = new StringBuilder("  Insercoes durante o travamento (quem despeja -> onde):\n");
+        StringBuilder sb = new StringBuilder(Msg.t("  Insercoes durante o travamento (quem despeja -> onde):")).append('\n');
         DESPEJOS_NO_TRAVAMENTO.entrySet().stream()
                 .sorted((a, b) -> Long.compare(b.getValue()[0], a.getValue()[0]))
                 .limit(5)
                 .forEach(e -> {
                     Despejo d = e.getKey();
-                    sb.append(String.format(PT, "    %s%s -> %s (%,d slots)%s: %,d chamada(s)%n", d.fonte(),
-                            d.posFonte() == null ? "" : " em " + d.posFonte().toShortString(), d.destino(), d.slots(),
-                            d.posDestino() == null ? "" : " em " + d.posDestino().toShortString(), e.getValue()[0]));
+                    sb.append(String.format(Msg.locale(), Msg.t("    %s%s -> %s (%,d slots)%s: %,d chamada(s)%n"), d.fonte(),
+                            d.posFonte() == null ? "" : Msg.f(" em {}", d.posFonte().toShortString()), d.destino(), d.slots(),
+                            d.posDestino() == null ? "" : Msg.f(" em {}", d.posDestino().toShortString()), e.getValue()[0]));
                     if (d.slots() >= 54) {
                         PIORES.merge(d.destino(), d, (a, b) -> b.slots() >= a.slots() ? b : a);
                         if (d.posFonte() != null) {
@@ -206,12 +236,11 @@ public final class Insercao {
         int fontes = FONTES_POR_DESTINO.getOrDefault(d.destino(), java.util.Set.of()).size();
         String fonte = d.fonte().contains(":") ? d.fonte().substring(d.fonte().indexOf(':') + 1) : d.fonte();
         Avisos.substituir("insercao:" + d.destino(),
-                String.format(PT, "%s%d maquina(s) (%s) despejando num inventario de %,d slots", fontes > 1 ? "pelo menos " : "",
+                String.format(Msg.locale(), Msg.t("%s%d maquina(s) (%s) despejando num inventario de %,d slots"), fontes > 1 ? Msg.t("pelo menos ") : "",
                         Math.max(1, fontes), fonte, d.slots()),
-                "Contadas so as maquinas vistas durante os travamentos (pode haver mais). Durante um travamento, " + d.fonte() + (d.posFonte() == null ? "" : " em " + d.posFonte().toShortString())
-                        + " estava inserindo itens direto em " + d.destino() + (d.posDestino() == null ? "" : " em " + d.posDestino().toShortString())
-                        + ", que tem " + d.slots() + " slots. O Forge percorre todos os slots para cada pilha inserida. Coloque um bau comum ou uma rede "
-                        + "(AE2/RS) entre a maquina e o inventario grande, ou ligue o modulo insercao_rapida.");
+                Msg.f("Contadas so as maquinas vistas durante os travamentos (pode haver mais). Durante um travamento, {}{} estava inserindo itens direto em {}{}, que tem {} slots. O Forge percorre todos os slots para cada pilha inserida. Coloque um bau comum ou uma rede (AE2/RS) entre a maquina e o inventario grande, ou ligue o modulo insercao_rapida.",
+                        d.fonte(), d.posFonte() == null ? "" : Msg.f(" em {}", d.posFonte().toShortString()), d.destino(),
+                        d.posDestino() == null ? "" : Msg.f(" em {}", d.posDestino().toShortString()), d.slots()));
     }
 
     // ---------- insercao_rapida ----------
@@ -262,7 +291,7 @@ public final class Insercao {
         if (ultimo != null && ultimo >= 0 && ultimo < slots) {
             ItemStack noSlot = h.getStackInSlot(ultimo);
             if (ItemHandlerHelper.canItemStacksStackRelaxed(noSlot, pilha)) {
-                ItemStack resto = h.insertItem(ultimo, pilha, simular);
+                ItemStack resto = inserir(h, ultimo, pilha, simular);
                 if (resto.isEmpty()) {
                     RAPIDAS.incrementAndGet();
                     return ItemStack.EMPTY;
@@ -276,7 +305,7 @@ public final class Insercao {
         // 2. Nenhuma pilha igual com espaco (segundo a ultima varredura): direto no primeiro vazio conhecido.
         if (ultimo != null && ultimo < 0 && c.primeiroVazio >= 0 && c.primeiroVazio < slots && h.getStackInSlot(c.primeiroVazio).isEmpty()) {
             int vazio = c.primeiroVazio;
-            ItemStack resto = h.insertItem(vazio, pilha, simular);
+            ItemStack resto = inserir(h, vazio, pilha, simular);
             if (resto.getCount() < pilha.getCount() && !simular) {
                 c.slotPorItem.put(chave, vazio);
                 c.primeiroVazio = proximoVazio(h, vazio + 1, slots);
@@ -323,7 +352,7 @@ public final class Insercao {
             ItemStack noSlot = h.getStackInSlot(i);
             if (ItemHandlerHelper.canItemStacksStackRelaxed(noSlot, resto)) {
                 int antes = resto.getCount();
-                resto = h.insertItem(i, resto, simular);
+                resto = inserir(h, i, resto, simular);
                 if (resto.getCount() < antes) {
                     aceitouEm = i;
                 }
@@ -343,7 +372,7 @@ public final class Insercao {
                         c.primeiroVazio = i;
                     }
                     int antes = resto.getCount();
-                    resto = h.insertItem(i, resto, simular);
+                    resto = inserir(h, i, resto, simular);
                     if (resto.getCount() < antes) {
                         aceitouEm = i;
                         if (!simular) {

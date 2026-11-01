@@ -1,5 +1,6 @@
 package com.hlotimizacao.cliente;
 
+import com.hlotimizacao.config.Msg;
 import com.hlotimizacao.config.Config;
 import com.hlotimizacao.recursos.Estatisticas;
 import com.mojang.datafixers.util.Either;
@@ -46,13 +47,13 @@ public final class TooltipSeguro {
 
     private static void linhasDoItem(ItemTooltipEvent event) {
         if (limpar(event.getToolTip())) {
-            avisar(event.getItemStack(), "o proprio item (mod " + modDoItem(event.getItemStack()) + ")");
+            avisar(event.getItemStack(), Msg.f("o proprio item (mod {})", modDoItem(event.getItemStack())));
         }
     }
 
     private static void linhasDeOutrosMods(ItemTooltipEvent event) {
         if (limpar(event.getToolTip())) {
-            avisar(event.getItemStack(), "outro mod, por um ouvinte do ItemTooltipEvent");
+            avisar(event.getItemStack(), Msg.t("outro mod, por um ouvinte do ItemTooltipEvent"));
         }
     }
 
@@ -67,7 +68,7 @@ public final class TooltipSeguro {
             }
         }
         if (achou) {
-            avisar(event.getItemStack(), "outro mod, pelo RenderTooltipEvent.GatherComponents");
+            avisar(event.getItemStack(), Msg.t("outro mod, pelo RenderTooltipEvent.GatherComponents"));
         }
     }
 
@@ -106,7 +107,7 @@ public final class TooltipSeguro {
 
     private static String idDoItem(ItemStack stack) {
         if (stack == null || stack.isEmpty()) {
-            return "(sem item)";
+            return Msg.t("(sem item)");
         }
         ResourceLocation id = ForgeRegistries.ITEMS.getKey(stack.getItem());
         return id == null ? stack.getItem().toString() : id.toString();

@@ -10,7 +10,13 @@ import com.hlotimizacao.recursos.LimpezaItens;
 import com.hlotimizacao.recursos.RelatorioConflitos;
 import com.hlotimizacao.recursos.VerificadorMods;
 import net.minecraftforge.api.distmarker.Dist;
+import com.hlotimizacao.recursos.ModoSeguro;
 import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.event.TickEvent;
+import net.minecraftforge.event.entity.living.LivingDropsEvent;
+import net.minecraftforge.event.entity.living.MobSpawnEvent;
+import net.minecraftforge.event.level.ChunkEvent;
+import net.minecraftforge.event.level.LevelEvent;
 import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.event.server.ServerStartedEvent;
 import net.minecraftforge.event.server.ServerStoppingEvent;
@@ -38,20 +44,20 @@ public class HLOtimizacao {
         // Prioridade mais baixa: registra depois dos outros mods, para saber se /hl ja esta em uso.
         MinecraftForge.EVENT_BUS.addListener(net.minecraftforge.eventbus.api.EventPriority.LOWEST, Comandos::registrar);
         com.hlotimizacao.rede.RedeHL.registrar();
-        MinecraftForge.EVENT_BUS.addListener(com.hlotimizacao.rede.RedeHL::aoTick);
-        MinecraftForge.EVENT_BUS.addListener(Desempenho::aoTick);
+        ModoSeguro.ouvir(null, TickEvent.ServerTickEvent.class, com.hlotimizacao.rede.RedeHL::aoTick);
+        ModoSeguro.ouvir(null, TickEvent.ServerTickEvent.class, Desempenho::aoTick);
         if (Config.ativo(Modulo.LIMITE_ENXAME)) {
-            MinecraftForge.EVENT_BUS.addListener(com.hlotimizacao.recursos.LimiteEnxame::aoSpawnar);
+            ModoSeguro.ouvir(Modulo.LIMITE_ENXAME, MobSpawnEvent.FinalizeSpawn.class, com.hlotimizacao.recursos.LimiteEnxame::aoSpawnar);
         }
         if (Config.ativo(Modulo.RELATORIO_CONFLITOS)) {
-            MinecraftForge.EVENT_BUS.addListener(com.hlotimizacao.recursos.DimensoesPesadas::aoTick);
+            ModoSeguro.ouvir(Modulo.RELATORIO_CONFLITOS, TickEvent.ServerTickEvent.class, com.hlotimizacao.recursos.DimensoesPesadas::aoTick);
         }
-        MinecraftForge.EVENT_BUS.addListener(Desempenho::aoSalvar);
+        ModoSeguro.ouvir(null, LevelEvent.Save.class, Desempenho::aoSalvar);
         MinecraftForge.EVENT_BUS.addListener((ServerStartedEvent e) -> Desempenho.aoIniciarServidor());
         Desempenho.iniciarGc();
         if (Config.ativo(Modulo.LIMPEZA_ITENS)) {
-            MinecraftForge.EVENT_BUS.addListener(LimpezaItens::aoTick);
-            MinecraftForge.EVENT_BUS.addListener(LimpezaItens::aoMorrer);
+            ModoSeguro.ouvir(Modulo.LIMPEZA_ITENS, TickEvent.ServerTickEvent.class, LimpezaItens::aoTick);
+            ModoSeguro.ouvir(Modulo.LIMPEZA_ITENS, LivingDropsEvent.class, LimpezaItens::aoMorrer);
             MinecraftForge.EVENT_BUS.addListener((ServerStartedEvent e) -> LimpezaItens.aoIniciarServidor(e.getServer()));
         }
         if (Config.ativo(Modulo.RELATORIO_CONFLITOS)) {
@@ -59,8 +65,8 @@ public class HLOtimizacao {
             Config.LOGGER.info("Verificacao da lista de mods: {} aviso(s)", avisos);
         }
         if (Config.ativo(Modulo.DIAGNOSTICO_LAG)) {
-            MinecraftForge.EVENT_BUS.addListener(DiagnosticoLag::aoTick);
-            MinecraftForge.EVENT_BUS.addListener(DiagnosticoLag::aoCarregarChunk);
+            ModoSeguro.ouvir(Modulo.DIAGNOSTICO_LAG, TickEvent.ServerTickEvent.class, DiagnosticoLag::aoTick);
+            ModoSeguro.ouvir(Modulo.DIAGNOSTICO_LAG, ChunkEvent.Load.class, DiagnosticoLag::aoCarregarChunk);
             MinecraftForge.EVENT_BUS.addListener((ServerStartedEvent e) -> DiagnosticoLag.aoIniciarServidor(e.getServer()));
             MinecraftForge.EVENT_BUS.addListener((ServerStoppingEvent e) -> DiagnosticoLag.aoPararServidor());
             MinecraftForge.EVENT_BUS.addListener((PlayerEvent.PlayerLoggedInEvent e) -> DiagnosticoLag.aoEntrarJogador());

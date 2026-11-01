@@ -39,6 +39,9 @@ public final class DadosPainel {
     public long lagRegistros;
     public long lagPiorMs;
     public String maisCulpado = "";
+    /** Preset ativo (nome no idioma do servidor) e quantidade de mods. */
+    public String preset = "";
+    public int mods;
     public int avisos;
 
     // ---- secoes opcionais ----
@@ -73,6 +76,8 @@ public final class DadosPainel {
         public long xms = -1;
         public String java = "";
         public boolean ajusteGc = true;
+        /** Custo do proprio HLO (ms/tick, -1 = ainda medindo). */
+        public float custoMs = -1;
         public List<Dimensao> dimensoes = new ArrayList<>();
     }
 
@@ -145,6 +150,8 @@ public final class DadosPainel {
         buf.writeVarLong(lagPiorMs);
         texto(buf, maisCulpado, 40);
         buf.writeVarInt(avisos);
+        texto(buf, preset, 20);
+        buf.writeVarInt(mods);
 
         buf.writeBoolean(modulos != null);
         if (modulos != null) {
@@ -179,6 +186,7 @@ public final class DadosPainel {
             buf.writeLong(d.xms);
             texto(buf, d.java, 60);
             buf.writeBoolean(d.ajusteGc);
+            buf.writeFloat(d.custoMs);
             buf.writeVarInt(d.dimensoes.size());
             for (Dimensao dim : d.dimensoes) {
                 texto(buf, dim.id(), 60);
@@ -267,6 +275,8 @@ public final class DadosPainel {
         d.lagPiorMs = buf.readVarLong();
         d.maisCulpado = buf.readUtf();
         d.avisos = buf.readVarInt();
+        d.preset = buf.readUtf();
+        d.mods = buf.readVarInt();
 
         if (buf.readBoolean()) {
             int n = buf.readVarInt();
@@ -296,6 +306,7 @@ public final class DadosPainel {
             p.xms = buf.readLong();
             p.java = buf.readUtf();
             p.ajusteGc = buf.readBoolean();
+            p.custoMs = buf.readFloat();
             int dims = buf.readVarInt();
             for (int i = 0; i < dims; i++) {
                 p.dimensoes.add(new Dimensao(buf.readUtf(), buf.readVarInt(), buf.readVarInt(), buf.readVarInt(), buf.readVarInt()));

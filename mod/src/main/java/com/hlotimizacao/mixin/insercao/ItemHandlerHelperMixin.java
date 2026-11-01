@@ -1,5 +1,6 @@
 package com.hlotimizacao.mixin.insercao;
 
+import com.hlotimizacao.recursos.Custo;
 import com.hlotimizacao.recursos.Insercao;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.items.IItemHandler;
@@ -14,7 +15,13 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 public abstract class ItemHandlerHelperMixin {
     @Inject(method = "insertItemStacked", at = @At("HEAD"), cancellable = true, require = 0)
     private static void hlotimizacao$inserir(IItemHandler destino, ItemStack pilha, boolean simular, CallbackInfoReturnable<ItemStack> cir) {
-        ItemStack resto = Insercao.aoInserir(destino, pilha, simular);
+        long inicio = Custo.inicio();
+        ItemStack resto;
+        try {
+            resto = Insercao.aoInserir(destino, pilha, simular);
+        } finally {
+            Custo.fim(inicio);
+        }
         if (resto != null) {
             cir.setReturnValue(resto);
         }

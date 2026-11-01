@@ -2,6 +2,7 @@ package com.hlotimizacao.mixin;
 
 import com.hlotimizacao.config.Config;
 import com.hlotimizacao.config.Modulo;
+import com.hlotimizacao.config.Msg;
 import org.objectweb.asm.tree.ClassNode;
 import org.spongepowered.asm.mixin.extensibility.IMixinConfigPlugin;
 import org.spongepowered.asm.mixin.extensibility.IMixinInfo;
@@ -23,6 +24,8 @@ public class HLMixinPlugin implements IMixinConfigPlugin {
                 Config.LOGGER.debug("Nao foi possivel registrar o leitor de erros de mixin", t);
             }
         }
+        Config.LOGGER.info("{} mods detectados -> preset \"{}\"{} (mude com preset= em config/hlotimizacao.properties)",
+                Config.modsCarregados(), Config.preset().nome(), Config.presetAutomatico() ? "" : Msg.t(" (escolhido na config)"));
         for (Modulo modulo : Modulo.values()) {
             Config.LOGGER.info("Modulo {}: {}", modulo.chave, Config.motivo(modulo));
         }

@@ -1,5 +1,6 @@
 package com.hlotimizacao.recursos;
 
+import com.hlotimizacao.config.Msg;
 import com.hlotimizacao.config.Config;
 import com.hlotimizacao.mixin.ErrosMixin;
 
@@ -49,13 +50,14 @@ public final class DiagnosticoAmbiente {
             String explicacao = CORRECOES.stream()
                     .filter(c -> falha.config().toLowerCase(Locale.ROOT).contains(c.config()) && falha.motivo().toLowerCase(Locale.ROOT).contains(c.motivo()))
                     .map(Correcao::texto).findFirst()
-                    .orElse("A parte do mod que depende desse mixin nao esta funcionando. Normalmente outro mod alterou o mesmo codigo antes.");
+                    .map(Msg::t)
+                    .orElse(Msg.t("A parte do mod que depende desse mixin nao esta funcionando. Normalmente outro mod alterou o mesmo codigo antes."));
             Config.LOGGER.warn("[Mixin] {} ({}) falhou ao aplicar em {}. {}\n    Motivo: {}",
                     falha.mixin(), falha.config(), falha.alvo(), explicacao, falha.motivo());
             String config = falha.config().replace(".mixins.json", "").replace(".json", "");
-            Avisos.adicionar("Mixin de " + (config.length() > 30 ? config.substring(0, 29) + "…" : config) + " falhou",
-                    falha.mixin() + " falhou ao aplicar em " + falha.alvo() + ". " + explicacao + "\nMotivo: "
-                            + (falha.motivo().length() > 300 ? falha.motivo().substring(0, 300) + "…" : falha.motivo()));
+            Avisos.adicionar(Msg.f("Mixin de {} falhou", config.length() > 30 ? config.substring(0, 29) + "…" : config),
+                    Msg.f("{} falhou ao aplicar em {}. {}", falha.mixin(), falha.alvo(), explicacao) + "\n"
+                            + Msg.f("Motivo: {}", falha.motivo().length() > 300 ? falha.motivo().substring(0, 300) + "…" : falha.motivo()));
             avisos++;
         }
         return avisos;
@@ -83,9 +85,9 @@ public final class DiagnosticoAmbiente {
         if (xms > 0 && xms < xmx / 4) {
             Config.LOGGER.info("[JVM] -Xms ({} MB) e bem menor que -Xmx ({} MB): a JVM vai aumentando a memoria aos poucos durante o jogo, "
                     + "com pausas de coleta de lixo maiores no comeco. Sugestao: -Xms igual a metade (ou ao total) do -Xmx.", xms >> 20, xmx >> 20);
-            Avisos.adicionar("JVM: -Xms muito menor que -Xmx",
-                    "-Xms " + (xms >> 20) + " MB e -Xmx " + (xmx >> 20) + " MB: a JVM aumenta a memoria aos poucos, com pausas maiores no comeco. "
-                            + "Sugestao: -Xms igual a metade (ou ao total) do -Xmx.");
+            Avisos.adicionar(Msg.t("JVM: -Xms muito menor que -Xmx"),
+                    Msg.f("-Xms {} MB e -Xmx {} MB: a JVM aumenta a memoria aos poucos, com pausas maiores no comeco. Sugestao: -Xms igual a metade (ou ao total) do -Xmx.",
+                            xms >> 20, xmx >> 20));
             avisos++;
         }
         DiagnosticoAmbiente.ajusteGc = ajusteGc;
@@ -94,7 +96,7 @@ public final class DiagnosticoAmbiente {
             Config.LOGGER.info("[JVM] Nenhuma opcao de coleta de lixo (GC) nos argumentos. O Java 17 ja usa o G1, mas para modpacks grandes "
                     + "costuma ajudar: -XX:+UseG1GC -XX:MaxGCPauseMillis=130 -XX:+UnlockExperimentalVMOptions -XX:G1NewSizePercent=20 "
                     + "-XX:G1ReservePercent=20 -XX:G1HeapRegionSize=32M");
-            Avisos.adicionar("JVM: sem opcoes de coleta de lixo", FLAGS_G1);
+            Avisos.adicionar(Msg.t("JVM: sem opcoes de coleta de lixo"), Msg.t(FLAGS_G1));
             avisos++;
         }
         return avisos;
@@ -126,8 +128,8 @@ public final class DiagnosticoAmbiente {
         if (versao.feature() == 17 && versao.update() < JAVA17_MINIMO) {
             Config.LOGGER.warn("[Java] Java {} e antigo (de antes de 2024). Atualize para o Java 17 mais recente (por exemplo, Eclipse Temurin 17 ou "
                     + "Microsoft OpenJDK 17): ha correcoes de desempenho e de travamentos do proprio Java.", versao);
-            Avisos.adicionar("Java " + versao.feature() + "." + versao.interim() + "." + versao.update() + " antigo",
-                    "Atualize para o Java 17 mais recente (Eclipse Temurin 17 ou Microsoft OpenJDK 17): ha correcoes de desempenho e de travamentos do proprio Java.");
+            Avisos.adicionar(Msg.f("Java {} antigo", versao.feature() + "." + versao.interim() + "." + versao.update()),
+                    Msg.t("Atualize para o Java 17 mais recente (Eclipse Temurin 17 ou Microsoft OpenJDK 17): ha correcoes de desempenho e de travamentos do proprio Java."));
             return 1;
         }
         return 0;

@@ -1,6 +1,8 @@
 package com.hlotimizacao.recursos;
 
 import com.hlotimizacao.config.Config;
+import com.hlotimizacao.config.Modulo;
+import com.hlotimizacao.config.Msg;
 import com.hlotimizacao.mixin.lag.ChunkMapAccessor;
 import com.hlotimizacao.mixin.lag.LevelAccessor;
 import net.minecraft.resources.ResourceLocation;
@@ -203,6 +205,9 @@ public final class DiagnosticoLag {
         while (true) {
             try {
                 Thread.sleep(AMOSTRA_MS);
+                if (ModoSeguro.desligado(Modulo.DIAGNOSTICO_LAG)) {
+                    return; // sem os eventos de tick a vigia acharia que o servidor travou para sempre
+                }
                 amostrar();
             } catch (InterruptedException e) {
                 return;
@@ -259,7 +264,7 @@ public final class DiagnosticoLag {
         atual = t;
         Config.LOGGER.warn("[diagnostico_lag] Servidor travado ha {} ms ({}{}). Onde a thread do servidor esta agora "
                         + "(continua tirando amostras enquanto durar):\n{}",
-                paradoMs, onde.texto, marcaSalvamento(t), formatarPilha(pilha));
+                paradoMs, Msg.t(onde.texto), marcaSalvamento(t), formatarPilha(pilha));
     }
 
     private static StackTraceElement[] adicionarAmostra(Travamento t, Thread thread, long paradoMs) {
@@ -286,10 +291,10 @@ public final class DiagnosticoLag {
 
     private static String marcaSalvamento(Travamento t) {
         if (t.salvando && t.pausado) {
-            return ", durante o salvamento ao pausar (\"Saving and pausing game\"): provavelmente gravacao em disco";
+            return Msg.t(", durante o salvamento ao pausar (\"Saving and pausing game\"): provavelmente gravacao em disco");
         }
         if (t.salvando) {
-            return ", durante um salvamento do mundo: provavelmente gravacao em disco";
+            return Msg.t(", durante um salvamento do mundo: provavelmente gravacao em disco");
         }
         return "";
     }
@@ -301,7 +306,7 @@ public final class DiagnosticoLag {
             sb.append("    at ").append(frames[i]).append('\n');
         }
         if (frames.length > limite) {
-            sb.append("    ... mais ").append(frames.length - limite).append(" frames\n");
+            sb.append(Msg.f("    ... mais {} frames", frames.length - limite)).append('\n');
         }
         return sb.toString();
     }
@@ -428,7 +433,7 @@ public final class DiagnosticoLag {
 
     /** Nome curto para mostrar no /hl status (mods aparecem pelo id; padroes por um rotulo). */
     public static String rotulo(String chave) {
-        return switch (chave) {
+        return Msg.t(switch (chave) {
             case CHUNK_SINCRONO -> "chunk síncrono";
             case GRAVACAO_DISCO -> "gravação em disco";
             case COMPRESSAO -> "compressão";
@@ -436,11 +441,11 @@ public final class DiagnosticoLag {
             case INSERCAO -> "inserção em inventário";
             case SEM_MOD -> "Minecraft/Forge";
             default -> chave;
-        };
+        });
     }
 
     public static String explicacao(String chave) {
-        return EXPLICACAO.getOrDefault(chave, "");
+        return Msg.t(EXPLICACAO.getOrDefault(chave, ""));
     }
 
     private static boolean metodo(StackTraceElement f, String classe, String... nomes) {
@@ -502,7 +507,7 @@ public final class DiagnosticoLag {
 
     private static Causa padrao(String chave, StackTraceElement[] pilha, int desde) {
         StackTraceElement pedido = primeiroDeMod(pilha, desde, desde + 25);
-        return new Causa(chave, pedido == null ? "" : "pedido por: " + modDoFrame(pedido) + " (" + nomeCurto(pedido) + ")");
+        return new Causa(chave, pedido == null ? "" : Msg.f("pedido por: {} ({})", modDoFrame(pedido), nomeCurto(pedido)));
     }
 
     /**
@@ -533,7 +538,7 @@ public final class DiagnosticoLag {
                 StackTraceElement onde = primeiroDeMod(pilha, 0, i);
                 StackTraceElement quem = primeiroDeMod(pilha, i + 1, i + 25);
                 String detalhe = (quem == null ? "?" : modDoFrame(quem) + " (" + classeCurta(quem) + ")") + " -> "
-                        + (onde == null ? "inventario" : modDoFrame(onde) + " (" + classeCurta(onde) + ")");
+                        + (onde == null ? Msg.t("inventario") : modDoFrame(onde) + " (" + classeCurta(onde) + ")");
                 return new Causa(INSERCAO, detalhe);
             }
         }
@@ -563,7 +568,7 @@ public final class DiagnosticoLag {
         }
         for (int i = PROFUNDIDADE_MAXIMA; i < pilha.length; i++) {
             if (!mixinIgnorado(pilha[i]) && modDoFrame(pilha[i]) != null) {
-                return new Causa(SEM_MOD, "o mod mais proximo, " + modDoFrame(pilha[i]) + ", esta a " + i + " frames do topo");
+                return new Causa(SEM_MOD, Msg.f("o mod mais proximo, {}, esta a {} frames do topo", modDoFrame(pilha[i]), i));
             }
         }
         return new Causa(SEM_MOD, nomeCurto(pilha[0]));
@@ -582,7 +587,7 @@ public final class DiagnosticoLag {
             sb.append('\n');
         }
         if (pilha.length > limite) {
-            sb.append("  ... mais ").append(pilha.length - limite).append(" frames\n");
+            sb.append(Msg.f("  ... mais {} frames", pilha.length - limite)).append('\n');
         }
         return sb.toString();
     }
@@ -601,7 +606,7 @@ public final class DiagnosticoLag {
     /** "pehkui 85% (virtuoel...ScaleData.getScale), avaritia 15% (...)", sobre todas as amostras. */
     static String provavelCausa(List<StackTraceElement[]> amostras) {
         if (amostras.isEmpty()) {
-            return "sem amostras (travamento curto demais)";
+            return Msg.t("sem amostras (travamento curto demais)");
         }
         Map<String, String> exemplo = new HashMap<>();
         Map<String, Integer> contagem = contarPorMod(amostras, exemplo);
@@ -612,10 +617,10 @@ public final class DiagnosticoLag {
         return contagem.entrySet().stream()
                 .sorted(Map.Entry.<String, Integer>comparingByValue().reversed())
                 .limit(3)
-                .map(e -> String.format("%s %d%% (%s)", e.getKey(), Math.round(100.0 * e.getValue() / total),
+                .map(e -> String.format("%s %d%% (%s)", Msg.t(e.getKey()), Math.round(100.0 * e.getValue() / total),
                         ehPadrao(e.getKey()) ? explicacao(e.getKey()) + (exemplo.get(e.getKey()).isEmpty() ? "" : "; " + exemplo.get(e.getKey()))
                                 : exemplo.get(e.getKey())))
-                .collect(Collectors.joining(", ")) + String.format(" [%d amostra(s)]", total);
+                .collect(Collectors.joining(", ")) + String.format(Msg.t(" [%d amostra(s)]"), total);
     }
 
     private static final Set<String> ABRIR_ARQUIVO = Set.of(
@@ -663,7 +668,7 @@ public final class DiagnosticoLag {
         int total = amostras.size();
         StringBuilder sb = new StringBuilder();
         if (arquivo > 0) {
-            sb.append(String.format("%d%% abrindo arquivos para gravar%s (se for frequente, provavelmente o antivirus)",
+            sb.append(String.format(Msg.t("%d%% abrindo arquivos para gravar%s (se for frequente, provavelmente o antivirus)"),
                     Math.round(100.0 * arquivo / total), exemploArquivo == null ? "" : " (" + exemploArquivo + ")"));
             DiagnosticoAmbiente.arquivoAberto(arquivo * AMOSTRA_MS, "durante um travamento");
         }
@@ -671,7 +676,7 @@ public final class DiagnosticoLag {
             if (sb.length() > 0) {
                 sb.append("; ");
             }
-            sb.append(String.format("%d%% carregando classes (acontece uma vez, normalmente logo depois de entrar no mundo)", Math.round(100.0 * classes / total)));
+            sb.append(String.format(Msg.t("%d%% carregando classes (acontece uma vez, normalmente logo depois de entrar no mundo)"), Math.round(100.0 * classes / total)));
         }
         return sb.toString();
     }
@@ -688,16 +693,16 @@ public final class DiagnosticoLag {
         long duracao = duracaoMs >= 0 ? duracaoMs : t.duracaoMs;
         StringBuilder sb = new StringBuilder();
         if (t.onde == Onde.ENTRE) {
-            sb.append(String.format("[diagnostico_lag] Tick lento: servidor ocupado por pelo menos %d ms entre ticks%s.%n", duracao, marcaSalvamento(t)));
+            sb.append(String.format(Msg.t("[diagnostico_lag] Tick lento: servidor ocupado por pelo menos %d ms entre ticks%s.%n"), duracao, marcaSalvamento(t)));
         } else {
-            sb.append(String.format("[diagnostico_lag] Tick lento: %d ms (dentro do tick%s).%n", duracao, marcaSalvamento(t)));
+            sb.append(String.format(Msg.t("[diagnostico_lag] Tick lento: %d ms (dentro do tick%s).%n"), duracao, marcaSalvamento(t)));
         }
-        sb.append("  Provavel causa: ").append(provavelCausa(amostras)).append('\n');
+        sb.append(Msg.t("  Provavel causa: ")).append(provavelCausa(amostras)).append('\n');
         Map<String, String> exemplos = new HashMap<>();
         Map<String, Integer> porMod = contarPorMod(amostras, exemplos);
         exemplos.forEach(FRAME_POR_MOD::putIfAbsent);
         String principal = porMod.entrySet().stream().max(Map.Entry.comparingByValue()).map(Map.Entry::getKey).orElse(SEM_MOD);
-        String pilhaResumida = amostras.isEmpty() ? "(sem amostras)" : resumirPilha(amostras.get(0));
+        String pilhaResumida = amostras.isEmpty() ? Msg.t("(sem amostras)") : resumirPilha(amostras.get(0));
         int inicioDimensoes = sb.length();
         String insercoes = Insercao.relatorioDoTravamento();
         if (insercoes != null) {
@@ -705,7 +710,7 @@ public final class DiagnosticoLag {
         }
         String tipo = tipo(amostras);
         if (tipo != null) {
-            sb.append("  Tipo: ").append(tipo).append('\n');
+            sb.append(Msg.t("  Tipo: ")).append(tipo).append('\n');
         }
         int vazias = 0;
         for (ServerLevel level : server.getAllLevels()) {
@@ -714,11 +719,11 @@ public final class DiagnosticoLag {
                     vazias++;
                 }
             } catch (Throwable e) {
-                sb.append("  ").append(level.dimension().location()).append(": erro ao coletar (").append(e).append(")\n");
+                sb.append("  ").append(level.dimension().location()).append(Msg.f(": erro ao coletar ({})", e)).append('\n');
             }
         }
         if (vazias > 0) {
-            sb.append(String.format("  +%d dimensao(oes) vazia(s) (sem jogadores, chunks ou entidades)%n", vazias));
+            sb.append(String.format(Msg.t("  +%d dimensao(oes) vazia(s) (sem jogadores, chunks ou entidades)%n"), vazias));
         }
         String dimensoesTexto = sb.substring(inicioDimensoes).stripTrailing();
         guardar(new Registro(java.time.LocalTime.now(), duracao,
@@ -765,13 +770,13 @@ public final class DiagnosticoLag {
         int spawners = blocos.entrySet().stream().filter(e -> e.getKey().contains("spawner")).mapToInt(Map.Entry::getValue).sum();
         DimensoesPesadas.verificar(level.dimension().location().toString(), totalEntidades, itens, spawners);
         AtomicIntegerArray noTick = CHUNKS_DESDE_ULTIMO_TICK.get(level.dimension().location().toString());
-        sb.append(String.format("  %s: jogadores=%d, chunks prontos=%d, parciais (borda ou em geracao)=%d, tarefas pendentes=%d%n",
+        sb.append(String.format(Msg.t("  %s: jogadores=%d, chunks prontos=%d, parciais (borda ou em geracao)=%d, tarefas pendentes=%d%n"),
                 level.dimension().location(), jogadores, prontos, total - prontos, level.getChunkSource().getPendingTasksCount()));
         if (noTick != null && noTick.get(0) > 0) {
-            sb.append(String.format("    durante o travamento: %d chunks carregados, dos quais %d gerados agora (novos)%n", noTick.get(0), noTick.get(1)));
+            sb.append(String.format(Msg.t("    durante o travamento: %d chunks carregados, dos quais %d gerados agora (novos)%n"), noTick.get(0), noTick.get(1)));
         }
-        sb.append(String.format("    entidades=%d, mais comuns: %s%n", totalEntidades, top(entidades)));
-        sb.append(String.format("    block entities que tickam=%d%s, mais comuns: %s%n", tickers.size(),
+        sb.append(String.format(Msg.t("    entidades=%d, mais comuns: %s%n"), totalEntidades, top(entidades)));
+        sb.append(String.format(Msg.t("    block entities que tickam=%d%s, mais comuns: %s%n"), tickers.size(),
                 dormindo > 0 ? " (" + dormindo + " dormindo)" : "", top(blocos)));
         return true;
     }

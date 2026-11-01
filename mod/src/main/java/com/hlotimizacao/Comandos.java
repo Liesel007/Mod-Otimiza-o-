@@ -1,5 +1,6 @@
 package com.hlotimizacao;
 
+import com.hlotimizacao.config.Msg;
 import com.hlotimizacao.config.Config;
 import com.hlotimizacao.config.Modulo;
 import com.hlotimizacao.recursos.LimpezaItens;
@@ -32,7 +33,7 @@ public final class Comandos {
         if (hlOcupado) {
             if (!avisouHl) {
                 avisouHl = true;
-                Config.LOGGER.warn("Outro mod ja registrou o comando /hl; os comandos do HL Otimizacao ficam em /hlotimizacao");
+                Config.LOGGER.warn("Outro mod ja registrou o comando /hl; os comandos do HLO ficam em /hlotimizacao");
             }
             prefixo = HLOtimizacao.MOD_ID;
             dispatcher.register(arvore(HLOtimizacao.MOD_ID));
@@ -61,7 +62,7 @@ public final class Comandos {
                         .then(Commands.literal("avisos").executes(ctx -> pagina(ctx, PainelStatus::avisos))))
                 .then(Commands.literal("recarregar").requires(s -> s.hasPermission(2)).executes(ctx -> {
                     Config.recarregarValores();
-                    responder(ctx, "Configuracao relida (limites, listas e intervalos). Ligar ou desligar modulos exige reiniciar o jogo.");
+                    responder(ctx, Msg.t("Configuracao relida (limites, listas e intervalos). Ligar ou desligar modulos exige reiniciar o jogo."));
                     return 1;
                 }));
         raiz.then(Commands.literal("entidades").requires(Comandos::podeAdministrar).executes(Comandos::entidades));
@@ -69,12 +70,12 @@ public final class Comandos {
             raiz.then(Commands.literal("limpar").requires(s -> s.hasPermission(2))
                     .executes(ctx -> {
                         LimpezaItens.limparAgora(ctx.getSource().getServer());
-                        responder(ctx, "Limpeza dos itens no chao em 10 segundos.");
+                        responder(ctx, Msg.t("Limpeza dos itens no chao em 10 segundos."));
                         return 1;
                     })
                     .then(Commands.literal("cancelar").executes(ctx -> {
                         boolean ok = LimpezaItens.cancelar(ctx.getSource().getServer());
-                        responder(ctx, ok ? "Proxima limpeza cancelada." : "Uma limpeza ja esta em andamento.");
+                        responder(ctx, Msg.t(ok ? "Proxima limpeza cancelada." : "Uma limpeza ja esta em andamento."));
                         return ok ? 1 : 0;
                     }))
                     .then(Commands.literal("status").executes(ctx -> {
@@ -106,7 +107,7 @@ public final class Comandos {
             }
         }
         boolean console = !ctx.getSource().isPlayer();
-        responder(ctx, (console ? "==========" : "━━━━━━━━━━") + " Entidades (" + PainelStatus.num(total) + " no total) " + (console ? "==========" : "━━━━━━━━━━"));
+        responder(ctx, (console ? "==========" : "━━━━━━━━━━") + " " + Msg.f("Entidades ({} no total)", PainelStatus.num(total)) + " " + (console ? "==========" : "━━━━━━━━━━"));
         java.util.List<java.util.Map.Entry<Chave, java.util.Map<String, Integer>>> lista = new java.util.ArrayList<>(porChunk.entrySet());
         lista.sort((a, b) -> Integer.compare(b.getValue().values().stream().mapToInt(Integer::intValue).sum(),
                 a.getValue().values().stream().mapToInt(Integer::intValue).sum()));
@@ -119,14 +120,14 @@ public final class Comandos {
             int x = chunk.getMiddleBlockX();
             int z = chunk.getMiddleBlockZ();
             String tipo = comum.getKey().startsWith("minecraft:") ? comum.getKey().substring(10) : comum.getKey();
-            String texto = String.format(PainelStatus.PT, " %d. %s (%d, %d): %s · %s x%d", i + 1,
+            String texto = String.format(Msg.locale(), " %d. %s (%d, %d): %s · %s x%d", i + 1,
                     PainelStatus.cortar(dim.startsWith("minecraft:") ? dim.substring(10) : dim, 14), x, z, PainelStatus.num(soma),
                     PainelStatus.cortar(tipo, 18), comum.getValue());
             String tp = "/execute in " + dim + " run tp @s " + x + " ~ " + z;
             Component linha = Component.literal(console ? PainelStatus.paraConsole(texto) : texto).withStyle(st -> st
                     .withClickEvent(new net.minecraft.network.chat.ClickEvent(net.minecraft.network.chat.ClickEvent.Action.SUGGEST_COMMAND, tp))
                     .withHoverEvent(new net.minecraft.network.chat.HoverEvent(net.minecraft.network.chat.HoverEvent.Action.SHOW_TEXT,
-                            Component.literal(dim + " chunk " + chunk.x + ", " + chunk.z + "\n" + e.getValue() + "\nClique: " + tp))));
+                            Component.literal(dim + " chunk " + chunk.x + ", " + chunk.z + "\n" + e.getValue() + "\n" + Msg.f("Clique: {}", tp)))));
             ctx.getSource().sendSuccess(() -> linha, false);
         }
         return 1;

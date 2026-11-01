@@ -1,5 +1,6 @@
 package com.hlotimizacao.rede;
 
+import com.hlotimizacao.config.Msg;
 import com.hlotimizacao.HLOtimizacao;
 import com.hlotimizacao.config.Config;
 import com.hlotimizacao.config.Modulo;
@@ -37,9 +38,14 @@ import java.util.function.Supplier;
  * cliente e so aparencia.
  */
 public final class RedeHL {
-    private static final String VERSAO = "1";
+    private static final String VERSAO = "2";
+    /**
+     * O formato dos pacotes mudou na 0.3.0 (preset e custo do HLO). Canal com outro nome, e nao so outra versao:
+     * com o mesmo nome e versao diferente o Forge recusaria a conexao (cliente 0.2.x num servidor 0.3.0). Com outro
+     * nome, cada lado ve o canal do outro como ausente, entra normalmente e o F8 avisa que o servidor nao tem o painel.
+     */
     public static final SimpleChannel CANAL = NetworkRegistry.newSimpleChannel(
-            new ResourceLocation(HLOtimizacao.MOD_ID, "painel"), () -> VERSAO,
+            new ResourceLocation(HLOtimizacao.MOD_ID, "painel2"), () -> VERSAO,
             // Cliente ou servidor sem o mod continuam aceitos: o /hl cai no texto do chat.
             NetworkRegistry.acceptMissingOr(VERSAO), NetworkRegistry.acceptMissingOr(VERSAO));
 
@@ -245,26 +251,26 @@ public final class RedeHL {
     public static Resultado executar(ServerPlayer jogador, Acao acao, String argumento) {
         if (acao.exigeOperador && !podeAdministrar(jogador)) {
             Config.LOGGER.warn("[painel] {} tentou {} sem permissao", jogador.getGameProfile().getName(), acao);
-            return Resultado.erro("Sem permissão: só operadores podem fazer isso.");
+            return Resultado.erro(Msg.t("Sem permissão: só operadores podem fazer isso."));
         }
         MinecraftServer server = jogador.server;
         switch (acao) {
             case LIMPAR -> {
                 if (!Config.ativo(Modulo.LIMPEZA_ITENS)) {
-                    return Resultado.erro("A limpeza de itens está desligada.");
+                    return Resultado.erro(Msg.t("A limpeza de itens está desligada."));
                 }
                 LimpezaItens.limparAgora(server);
-                return Resultado.ok("Limpeza dos itens no chão em 10 segundos.");
+                return Resultado.ok(Msg.t("Limpeza dos itens no chão em 10 segundos."));
             }
             case CANCELAR -> {
                 if (!Config.ativo(Modulo.LIMPEZA_ITENS)) {
-                    return Resultado.erro("A limpeza de itens está desligada.");
+                    return Resultado.erro(Msg.t("A limpeza de itens está desligada."));
                 }
-                return LimpezaItens.cancelar(server) ? Resultado.ok("Próxima limpeza cancelada.") : Resultado.erro("Uma limpeza já está em andamento.");
+                return LimpezaItens.cancelar(server) ? Resultado.ok(Msg.t("Próxima limpeza cancelada.")) : Resultado.erro(Msg.t("Uma limpeza já está em andamento."));
             }
             case RECARREGAR -> {
                 Config.recarregarValores();
-                return Resultado.ok("Configuração relida.");
+                return Resultado.ok(Msg.t("Configuração relida."));
             }
             case IR_ITENS -> {
                 return irAteItens(jogador, argumento);
@@ -272,7 +278,7 @@ public final class RedeHL {
             case MODULO, CONFIG -> {
                 int igual = argumento.indexOf('=');
                 if (igual <= 0) {
-                    return Resultado.erro("Pedido inválido.");
+                    return Resultado.erro(Msg.t("Pedido inválido."));
                 }
                 String chave = argumento.substring(0, igual);
                 if (acao == Acao.MODULO) {
@@ -282,18 +288,18 @@ public final class RedeHL {
                 if (erro != null) {
                     return Resultado.erro(erro);
                 }
-                return Resultado.ok(acao == Acao.MODULO ? "Gravado. Mudanças nos módulos valem depois de reiniciar o jogo." : "Gravado e relido: " + chave);
+                return Resultado.ok(acao == Acao.MODULO ? Msg.t("Gravado. Mudanças nos módulos valem depois de reiniciar o jogo.") : Msg.f("Gravado e relido: {}", chave));
             }
             case DETALHE_LAG -> {
                 try {
                     String texto = ColetorStatus.detalheLag(Integer.parseInt(argumento));
-                    return texto == null ? Resultado.erro("Registro não encontrado.") : new Resultado(true, texto, "Travamento");
+                    return texto == null ? Resultado.erro(Msg.t("Registro não encontrado.")) : new Resultado(true, texto, Msg.t("Travamento"));
                 } catch (NumberFormatException e) {
-                    return Resultado.erro("Pedido inválido.");
+                    return Resultado.erro(Msg.t("Pedido inválido."));
                 }
             }
             default -> {
-                return Resultado.erro("Ação desconhecida.");
+                return Resultado.erro(Msg.t("Ação desconhecida."));
             }
         }
     }
@@ -303,7 +309,7 @@ public final class RedeHL {
         ResourceLocation id = ResourceLocation.tryParse(dimensao);
         ServerLevel level = id == null ? null : jogador.server.getLevel(ResourceKey.create(net.minecraft.core.registries.Registries.DIMENSION, id));
         if (level == null) {
-            return Resultado.erro("Dimensão não encontrada: " + dimensao);
+            return Resultado.erro(Msg.f("Dimensão não encontrada: {}", dimensao));
         }
         Map<Long, Integer> porChunk = new HashMap<>();
         for (Entity e : level.getAllEntities()) {
@@ -312,13 +318,13 @@ public final class RedeHL {
             }
         }
         if (porChunk.isEmpty()) {
-            return Resultado.erro("Não há itens no chão em " + dimensao + ".");
+            return Resultado.erro(Msg.f("Não há itens no chão em {}.", dimensao));
         }
         ChunkPos chunk = new ChunkPos(porChunk.entrySet().stream().max(Map.Entry.comparingByValue()).get().getKey());
         int x = chunk.getMiddleBlockX();
         int z = chunk.getMiddleBlockZ();
         int y = level.getHeight(Heightmap.Types.MOTION_BLOCKING, x, z) + 1;
         jogador.teleportTo(level, x + 0.5, y, z + 0.5, jogador.getYRot(), jogador.getXRot());
-        return Resultado.ok("Teleportado para " + new BlockPos(x, y, z).toShortString() + " em " + dimensao + " (" + porChunk.get(chunk.toLong()) + " pilhas de itens).");
+        return Resultado.ok(Msg.f("Teleportado para {} em {} ({} pilhas de itens).", new BlockPos(x, y, z).toShortString(), dimensao, porChunk.get(chunk.toLong())));
     }
 }

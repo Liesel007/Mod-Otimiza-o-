@@ -3,6 +3,7 @@ package com.hlotimizacao.rede;
 import com.hlotimizacao.PainelStatus;
 import com.hlotimizacao.config.Config;
 import com.hlotimizacao.config.Modulo;
+import com.hlotimizacao.config.Msg;
 import com.hlotimizacao.mixin.ErrosMixin;
 import com.hlotimizacao.recursos.Avisos;
 import com.hlotimizacao.recursos.Desempenho;
@@ -72,6 +73,8 @@ public final class ColetorStatus {
         d.maisCulpado = culpado == null ? "" : culpado;
         List<Avisos.Aviso> avisos = PainelStatus.todosOsAvisos();
         d.avisos = avisos.size();
+        d.preset = Config.preset().nome();
+        d.mods = Config.modsCarregados();
 
         switch (aba) {
             case MODULOS -> d.modulos = modulos(d);
@@ -88,7 +91,7 @@ public final class ColetorStatus {
             case CONFIG -> {
                 d.config = new ArrayList<>();
                 for (Map.Entry<String, String> e : Config.EDITAVEIS.entrySet()) {
-                    d.config.add(new DadosPainel.ItemConfig(e.getKey(), Config.valorTexto(e.getKey()), e.getValue()));
+                    d.config.add(new DadosPainel.ItemConfig(e.getKey(), Config.valorTexto(e.getKey()), com.hlotimizacao.config.Msg.t(e.getValue())));
                 }
             }
             default -> {
@@ -104,9 +107,9 @@ public final class ColetorStatus {
         for (Modulo m : ordem) {
             boolean ativo = Config.ativo(m);
             byte estado = ativo ? DadosPainel.Modulo.LIGADO : Config.naoNecessario(m) ? DadosPainel.Modulo.NAO_NECESSARIO : DadosPainel.Modulo.DESLIGADO;
-            String resumo = !ativo ? (Config.naoNecessario(m) ? "não necessário" : Config.motivoCurto(m)) : PainelStatus.resumoCurto(m);
+            String resumo = !ativo ? (Config.naoNecessario(m) ? com.hlotimizacao.config.Msg.t("não necessário") : Config.motivoCurto(m)) : PainelStatus.resumoCurto(m);
             String detalhe = ativo ? PainelStatus.detalhe(m) : Config.motivo(m);
-            lista.add(new DadosPainel.Modulo(m.chave, m.nomeAmigavel, estado, Config.valorConfigurado(m), resumo, m.descricao, detalhe, m.soCliente));
+            lista.add(new DadosPainel.Modulo(m.chave, m.nome(), estado, Config.valorConfigurado(m), resumo, m.texto(), detalhe, m.soCliente));
         }
         d.mudancaPendente = Config.temMudancaPendente();
         return lista;
@@ -128,6 +131,7 @@ public final class ColetorStatus {
         Runtime.Version v = Runtime.version();
         p.java = v.feature() + "." + v.interim() + "." + v.update() + " (" + System.getProperty("java.vendor", "?") + ")";
         p.ajusteGc = DiagnosticoAmbiente.temAjusteGc();
+        p.custoMs = (float) com.hlotimizacao.recursos.Custo.msPorTick();
         for (ServerLevel level : server.getAllLevels()) {
             int entidades = 0;
             int itens = 0;
@@ -169,7 +173,7 @@ public final class ColetorStatus {
         for (int i = 0; i < Math.min(MAX_REGISTROS, historico.size()); i++) {
             DiagnosticoLag.Registro r = historico.get(i);
             String detalhe = DiagnosticoLag.ehPadrao(r.mod()) ? r.frame() : PainelStatus.frameCurto(r.frame());
-            l.registros.add(new DadosPainel.Registro(i, r.hora().format(HORA), r.duracaoMs(), r.tipo(), DiagnosticoLag.rotulo(r.mod()), detalhe));
+            l.registros.add(new DadosPainel.Registro(i, r.hora().format(HORA), r.duracaoMs(), Msg.t(r.tipo()), DiagnosticoLag.rotulo(r.mod()), detalhe));
         }
         return l;
     }
@@ -204,10 +208,10 @@ public final class ColetorStatus {
             return null;
         }
         DiagnosticoLag.Registro r = historico.get(indice);
-        return "Travamento as " + r.hora().format(HORA) + ": " + PainelStatus.duracao(r.duracaoMs()) + " (" + r.tipo() + ")\n"
-                + "Causa: " + DiagnosticoLag.rotulo(r.mod()) + (r.frame().isEmpty() ? "" : " - " + r.frame()) + "\n"
+        return Msg.f("Travamento as {}: {} ({})", r.hora().format(HORA), PainelStatus.duracao(r.duracaoMs()), Msg.t(r.tipo())) + "\n"
+                + Msg.f("Causa: {}", DiagnosticoLag.rotulo(r.mod())) + (r.frame().isEmpty() ? "" : " - " + r.frame()) + "\n"
                 + (DiagnosticoLag.ehPadrao(r.mod()) ? DiagnosticoLag.explicacao(r.mod()) + "\n" : "")
-                + "\nPilha (primeira amostra; * = frame de mod):\n" + r.pilha()
-                + "\nDimensoes naquela hora:\n" + r.dimensoes();
+                + "\n" + Msg.t("Pilha (primeira amostra; * = frame de mod):") + "\n" + r.pilha()
+                + "\n" + Msg.t("Dimensoes naquela hora:") + "\n" + r.dimensoes();
     }
 }

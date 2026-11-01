@@ -54,7 +54,7 @@ public enum Modulo {
                     + "para o relatorio de lag e o /hl.",
             List.of()),
     INSERCAO_RAPIDA("Inserção rápida", false, "insercao_rapida", null,
-            "Opcional (desligado por padrao): insere itens em inventarios grandes usando um cache de onde o item coube da ultima vez, "
+            "Opcional (ligado so no preset agressivo): insere itens em inventarios grandes usando um cache de onde o item coube da ultima vez, "
                     + "sempre validado pelo proprio inventario; se o cache nao serve, faz a varredura normal do Forge.",
             List.of()),
     RELATORIO_CONFLITOS("Relatório de conflitos", false, "relatorio_conflitos", null,
@@ -70,6 +70,16 @@ public enum Modulo {
     public final String pacoteMixin;
     public final String descricao;
     public final List<String> modsConflitantes;
+
+    /** Nome amigavel no idioma do mod. */
+    public String nome() {
+        return Msg.t(nomeAmigavel);
+    }
+
+    /** Descricao no idioma do mod. */
+    public String texto() {
+        return Msg.t(descricao);
+    }
 
     Modulo(String nomeAmigavel, boolean soCliente, String chave, String pacoteMixin, String descricao, List<String> modsConflitantes) {
         this.nomeAmigavel = nomeAmigavel;
