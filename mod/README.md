@@ -9,7 +9,7 @@ Nome exibido: **HLO: HL Optimization** (o modId continua `hlotimizacao`, para n�
 Licença: [MIT](../LICENSE). Página do projeto (textos para o CurseForge): [`docs/curseforge/`](../docs/curseforge/).
 Mudanças por versão em inglês: [`CHANGELOG.md`](../CHANGELOG.md).
 
-**Jar pronto:** [`releases/hlotimizacao-0.3.0.jar`](../releases/hlotimizacao-0.3.0.jar). Basta colocá-lo
+**Jar pronto:** [`releases/hlotimizacao-0.3.1.jar`](../releases/hlotimizacao-0.3.1.jar). Basta colocá-lo
 na pasta `mods` da instância.
 
 ## Como ele convive com os mods do pack
@@ -73,7 +73,7 @@ O HLO **não exige estar dos dois lados**. Testado com os jars de produção e o
 | Combinação | Resultado |
 |---|---|
 | Servidor com HLO + cliente Forge **sem** HLO | entra normalmente; os módulos de servidor funcionam; mensagens do HLO (avisos da limpeza) chegam ao chat; `/hl` em texto |
-| Servidor com HLO + cliente com HLO | tela F8 com os dados do servidor (canal `hlotimizacao:painel2`) |
+| Servidor com HLO + cliente com HLO | tela F8 com os dados do servidor (canal `hlotimizacao:tela` desde a 0.3.1) |
 | Singleplayer só com o HLO | tudo, inclusive F8 e `/hl` |
 | Cliente com HLO + servidor sem HLO (ou com outra versão do HLO) | entra normalmente; só os módulos de cliente; F8 avisa que o servidor não tem o HLO. Na 0.3.0 testado com cliente 0.2.2 num servidor 0.3.0 (o servidor não tem o canal que o cliente procura, o mesmo caminho de um servidor sem HLO) |
 
@@ -158,7 +158,7 @@ pausa o jogo, então os números continuam se mexendo. Capturas em 1366×768: [`
 | Lag | travamentos da sessão, principais causas e os últimos 20; `[ver]` abre a pilha resumida e as dimensões, com **Copiar** |
 | Limpeza | tempo até a próxima, itens por dimensão, `[Limpar agora]` (com confirmação), `[Cancelar próxima]`, `[Ir até lá]` |
 | Avisos | todos os avisos, com `[como resolver]` |
-| Config | os valores que valem sem reiniciar, editáveis, com **Salvar e recarregar** |
+| Config | os valores que valem sem reiniciar, agrupados por módulo: números em **controles deslizantes** limitados à faixa aceita, verdadeiro/falso em interruptores, listas conferidas enquanto digita; **Desfazer** por valor e **Salvar (N)** no rodapé |
 
 - As ações (limpar, cancelar, ir até lá, mudar módulo ou config) são conferidas **no servidor**: operador (nível 2)
   ou o dono do mundo no singleplayer. Para os outros, os botões aparecem cinza e a config fica só para leitura.
@@ -229,6 +229,25 @@ Teste de antes e depois com números: [`docs/benchmark.md`](../docs/benchmark.md
   e o funcionamento junto com o pack HL completo. Teste num mundo de cópia antes de usar no mundo principal.
 
 ## Histórico de versões
+
+### 0.3.1
+Visual da tela e aba Config sem valores quebrados.
+- **Visual**: abas, botões, barras, títulos de seção, listas listradas, barra de rolagem arrastável e rodapé desenhados
+  pelo mod (antes eram os botões cinza do Minecraft). Tooltips quebram linha sem cortar palavras.
+- **Config**: cada número virou um **controle deslizante** que só vai até onde o servidor aceita. Faixas grandes
+  (ex.: 1 a 1.000.000 slots, 100 a 600.000 ms) usam escala logarítmica e param em valores redondos; os botões ‹ ›
+  fazem ajustes finos (1, ou ~1% do valor). Chaves que seguem o preset têm o botão **AUTO**, que mostra o valor do
+  preset (`auto · 10`). Verdadeiro/falso viraram interruptores. Listas continuam em texto, mas ficam vermelhas se
+  inválidas (ex.: `60,30,abc` em `avisos_s`, ou `zumbi=` sem número em `limite_enxame.lista`) e o Salvar não envia
+  nada enquanto houver erro. Valores mudados ficam marcados com ● e têm **Desfazer**; o rodapé tem Desfazer e
+  Salvar (N). A atualização de 1 s do servidor não apaga o que está sendo editado.
+- **Servidor**: as mesmas faixas (`Config.ESPECS`) valem na leitura da config, na validação da tela e nos
+  controles; antes ele aceitava qualquer número e não conferia as listas nem 4 das chaves true/false.
+- **Rede**: canal `hlotimizacao:tela`, que aceita qualquer versão; cada pacote de dados começa com o número do
+  protocolo e, se for diferente, a tela avisa "atualize o HLO" com as duas versões em vez de decodificar errado.
+- Testado no cliente Forge de produção como operador, por teclado e mouse simulados: lista inválida recusada,
+  arrasto parou em 130 (faixa 1–1440), › foi de 30 a 33, interruptor e AUTO mudaram, o servidor gravou só os
+  3 valores e o Desfazer devolveu tudo. Sem permissão, os controles aparecem esmaecidos e não respondem.
 
 ### 0.3.0
 Preparação para virar um mod público (parte A do documento "módulos novos e preparação para publicar no CurseForge").

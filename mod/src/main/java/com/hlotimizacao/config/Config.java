@@ -68,6 +68,122 @@ public final class Config {
         EDITAVEIS.put("insercao_rapida.orcamento", "Recusar insercoes alem do limite de varreduras no tick (true/false; teste as maquinas antes)");
         EDITAVEIS.put("insercao_rapida.ignorar", "Classes ou pacotes de inventarios que a insercao rapida nao toca (prefixos, separados por virgula)");
     }
+    /** Tipo de uma chave editavel: a tela monta o controle certo e o servidor recusa valores quebrados. */
+    public enum TipoChave { TEXTO, NUMERO, BOOLEANO, LISTA_NUMEROS, LISTA_PARES }
+
+    /** min/max valem para NUMERO e para os numeros das listas. aceitaAuto: "auto" segue o preset. */
+    public record Espec(TipoChave tipo, int min, int max, boolean aceitaAuto) {
+        static Espec numero(int min, int max) {
+            return new Espec(TipoChave.NUMERO, min, max, false);
+        }
+
+        static Espec numeroAuto(int min, int max) {
+            return new Espec(TipoChave.NUMERO, min, max, true);
+        }
+    }
+
+    private static final Espec TEXTO = new Espec(TipoChave.TEXTO, 0, 0, false);
+    private static final Espec BOOLEANO = new Espec(TipoChave.BOOLEANO, 0, 1, false);
+
+    /** Faixas usadas na leitura da config, na validacao da tela e nos controles deslizantes. */
+    public static final Map<String, Espec> ESPECS = Map.ofEntries(
+            Map.entry("fps_sem_foco.limite", Espec.numero(1, 260)),
+            Map.entry("fps_sem_foco.limite_minimizado", Espec.numero(1, 260)),
+            Map.entry("limpeza_itens.intervalo_min", Espec.numeroAuto(1, 1440)),
+            Map.entry("limpeza_itens.avisos_s", new Espec(TipoChave.LISTA_NUMEROS, 1, 3600, false)),
+            Map.entry("limpeza_itens.idade_minima_s", Espec.numero(0, 3600)),
+            Map.entry("limpeza_itens.proteger_itens_com_nbt", BOOLEANO),
+            Map.entry("limpeza_itens.proteger_sobre_coletores", BOOLEANO),
+            Map.entry("limpeza_itens.max_por_tick", Espec.numero(10, 100_000)),
+            Map.entry("diagnostico_lag.limite_ms", Espec.numero(100, 600_000)),
+            Map.entry("diagnostico_lag.intervalo_s", Espec.numero(1, 3600)),
+            Map.entry("diagnostico_lag.tolerancia_inicio_s", Espec.numero(0, 3600)),
+            Map.entry("alcance_ativacao.horizontal", Espec.numeroAuto(8, 512)),
+            Map.entry("alcance_ativacao.vertical", Espec.numero(8, 512)),
+            Map.entry("alcance_ativacao.intervalo", Espec.numeroAuto(2, 200)),
+            Map.entry("alcance_ativacao.proteger_itens", BOOLEANO),
+            Map.entry("alcance_ativacao.proteger_aldeoes", BOOLEANO),
+            Map.entry("alcance_ativacao.proteger_areas_sem_jogador", BOOLEANO),
+            Map.entry("limite_enxame.lista", new Espec(TipoChave.LISTA_PARES, 0, 100_000, false)),
+            Map.entry("limite_enxame.raio_chunks", Espec.numero(0, 4)),
+            Map.entry("insercao_rapida.limite_slots", Espec.numero(1, 1_000_000)),
+            Map.entry("insercao_rapida.varreduras_max_por_tick", Espec.numero(1, 10_000)),
+            Map.entry("insercao_rapida.orcamento", BOOLEANO));
+
+    public static Espec espec(String chave) {
+        return ESPECS.getOrDefault(chave, TEXTO);
+    }
+
+    /** Valor em uso de uma chave numerica (o do preset quando esta "auto"); -1 se nao for numerica. */
+    public static int valorEmUso(String chave) {
+        return switch (chave) {
+            case "fps_sem_foco.limite" -> fpsSemFoco;
+            case "fps_sem_foco.limite_minimizado" -> fpsMinimizado;
+            case "limpeza_itens.intervalo_min" -> limpezaIntervaloMin;
+            case "limpeza_itens.idade_minima_s" -> limpezaIdadeMinimaS;
+            case "limpeza_itens.max_por_tick" -> limpezaMaxPorTick;
+            case "diagnostico_lag.limite_ms" -> lagLimiteMs;
+            case "diagnostico_lag.intervalo_s" -> lagIntervaloS;
+            case "diagnostico_lag.tolerancia_inicio_s" -> lagToleranciaS;
+            case "alcance_ativacao.horizontal" -> ativacaoHorizontal;
+            case "alcance_ativacao.vertical" -> ativacaoVertical;
+            case "alcance_ativacao.intervalo" -> ativacaoIntervalo;
+            case "limite_enxame.raio_chunks" -> enxameRaioChunks;
+            case "insercao_rapida.limite_slots" -> insercaoLimiteSlots;
+            case "insercao_rapida.varreduras_max_por_tick" -> insercaoVarredurasMaxPorTick;
+            default -> -1;
+        };
+    }
+
+    /** null = valor valido; senao o motivo (ja traduzido). Mesmas regras que a tela usa antes de enviar. */
+    public static String validar(String chave, String v) {
+        Espec e = espec(chave);
+        switch (e.tipo()) {
+            case NUMERO -> {
+                if (e.aceitaAuto() && v.equals("auto")) {
+                    return null;
+                }
+                try {
+                    int n = Integer.parseInt(v);
+                    return n < e.min() || n > e.max() ? Msg.f("{} precisa estar entre {} e {}", chave, e.min(), e.max()) : null;
+                } catch (NumberFormatException ex) {
+                    return Msg.f("{} precisa ser um numero", chave);
+                }
+            }
+            case BOOLEANO -> {
+                return v.equals("true") || v.equals("false") ? null : Msg.f("{} precisa ser true ou false", chave);
+            }
+            case LISTA_NUMEROS, LISTA_PARES -> {
+                for (String parte : v.split(",")) {
+                    String p = parte.trim();
+                    if (p.isEmpty()) {
+                        continue;
+                    }
+                    String numero = p;
+                    if (e.tipo() == TipoChave.LISTA_PARES) {
+                        int igual = p.lastIndexOf('=');
+                        if (igual <= 0) {
+                            return Msg.f("{}: \"{}\" precisa ser tipo=numero", chave, p);
+                        }
+                        numero = p.substring(igual + 1).trim();
+                    }
+                    try {
+                        int n = Integer.parseInt(numero);
+                        if (n < e.min() || n > e.max()) {
+                            return Msg.f("{}: {} precisa estar entre {} e {}", chave, n, e.min(), e.max());
+                        }
+                    } catch (NumberFormatException ex) {
+                        return Msg.f("{}: \"{}\" nao e um numero", chave, numero);
+                    }
+                }
+                return null;
+            }
+            default -> {
+                return null;
+            }
+        }
+    }
+
     private static int fpsSemFoco = 15;
     private static int fpsMinimizado = 1;
     private static int lagLimiteMs = 2000;
@@ -179,16 +295,16 @@ public final class Config {
     /** Le os valores; devolve true se alguma chave faltava (e a coloca em props com o valor padrao). */
     private static boolean lerValores(Properties props) {
         boolean faltando = false;
-        fpsSemFoco = lerInt(props, "fps_sem_foco.limite", 15, 1, 260);
-        fpsMinimizado = lerInt(props, "fps_sem_foco.limite_minimizado", 1, 1, 260);
-        lagLimiteMs = lerInt(props, "diagnostico_lag.limite_ms", 2000, 100, 600000);
-        lagIntervaloS = lerInt(props, "diagnostico_lag.intervalo_s", 30, 1, 3600);
-        lagToleranciaS = lerInt(props, "diagnostico_lag.tolerancia_inicio_s", 30, 0, 3600);
+        fpsSemFoco = lerInt(props, "fps_sem_foco.limite", 15);
+        fpsMinimizado = lerInt(props, "fps_sem_foco.limite_minimizado", 1);
+        lagLimiteMs = lerInt(props, "diagnostico_lag.limite_ms", 2000);
+        lagIntervaloS = lerInt(props, "diagnostico_lag.intervalo_s", 30);
+        lagToleranciaS = lerInt(props, "diagnostico_lag.tolerancia_inicio_s", 30);
         salvamentoSerializarClasses = lista(props, "salvamento_assincrono.serializar_classes", "");
         lagIgnorarMixins = lista(props, "diagnostico_lag.ignorar_mixins", "chrono:scalePlayerGameplayTick");
-        ativacaoHorizontal = lerInt(props, "alcance_ativacao.horizontal", preset.valor(48, 40), 8, 512);
-        ativacaoVertical = lerInt(props, "alcance_ativacao.vertical", 48, 8, 512);
-        ativacaoIntervalo = lerInt(props, "alcance_ativacao.intervalo", preset.valor(20, 30), 2, 200);
+        ativacaoHorizontal = lerInt(props, "alcance_ativacao.horizontal", preset.valor(48, 40));
+        ativacaoVertical = lerInt(props, "alcance_ativacao.vertical", 48);
+        ativacaoIntervalo = lerInt(props, "alcance_ativacao.intervalo", preset.valor(20, 30));
         ativacaoProtegerItens = Boolean.parseBoolean(props.getProperty("alcance_ativacao.proteger_itens", "true").trim());
         ativacaoProtegerAldeoes = Boolean.parseBoolean(props.getProperty("alcance_ativacao.proteger_aldeoes", "true").trim());
         ativacaoProtegerSemJogador = Boolean.parseBoolean(props.getProperty("alcance_ativacao.proteger_areas_sem_jogador", "true").trim());
@@ -207,13 +323,13 @@ public final class Config {
             }
         }
         enxameLimites = Map.copyOf(limites);
-        enxameRaioChunks = lerInt(props, "limite_enxame.raio_chunks", 1, 0, 4);
-        insercaoLimiteSlots = lerInt(props, "insercao_rapida.limite_slots", 54, 1, 1_000_000);
-        insercaoVarredurasMaxPorTick = lerInt(props, "insercao_rapida.varreduras_max_por_tick", 4, 1, 10_000);
+        enxameRaioChunks = lerInt(props, "limite_enxame.raio_chunks", 1);
+        insercaoLimiteSlots = lerInt(props, "insercao_rapida.limite_slots", 54);
+        insercaoVarredurasMaxPorTick = lerInt(props, "insercao_rapida.varreduras_max_por_tick", 4);
         insercaoOrcamento = Boolean.parseBoolean(props.getProperty("insercao_rapida.orcamento", "false").trim());
         insercaoIgnorar = lista(props, "insercao_rapida.ignorar", "");
         versao++;
-        limpezaIntervaloMin = lerInt(props, "limpeza_itens.intervalo_min", preset.valor(10, 5), 1, 1440);
+        limpezaIntervaloMin = lerInt(props, "limpeza_itens.intervalo_min", preset.valor(10, 5));
         Set<Integer> avisos = new java.util.TreeSet<>();
         for (String aviso : lista(props, "limpeza_itens.avisos_s", "60,30,10,5")) {
             try {
@@ -223,12 +339,12 @@ public final class Config {
             }
         }
         limpezaAvisosS = Set.copyOf(avisos);
-        limpezaIdadeMinimaS = lerInt(props, "limpeza_itens.idade_minima_s", 30, 0, 3600);
+        limpezaIdadeMinimaS = lerInt(props, "limpeza_itens.idade_minima_s", 30);
         limpezaProtegerNbt = Boolean.parseBoolean(props.getProperty("limpeza_itens.proteger_itens_com_nbt", "true").trim());
         limpezaProtegerColetores = Boolean.parseBoolean(props.getProperty("limpeza_itens.proteger_sobre_coletores", "true").trim());
         limpezaItensProtegidos = lista(props, "limpeza_itens.itens_protegidos", PROTEGIDOS_PADRAO);
         limpezaDimensoes = List.copyOf(lista(props, "limpeza_itens.dimensoes", ""));
-        limpezaMaxPorTick = lerInt(props, "limpeza_itens.max_por_tick", 500, 10, 100000);
+        limpezaMaxPorTick = lerInt(props, "limpeza_itens.max_por_tick", 500);
         for (String[] chave : new String[][]{
                 {"fps_sem_foco.limite", Integer.toString(fpsSemFoco)},
                 {"fps_sem_foco.limite_minimizado", Integer.toString(fpsMinimizado)},
@@ -379,16 +495,11 @@ public final class Config {
             }
         } else if (!EDITAVEIS.containsKey(chave)) {
             return Msg.f("chave nao editavel: {}", chave);
-        } else if (!v.equals("auto") && (chave.endsWith("_min") || chave.endsWith("_s") && !chave.endsWith("avisos_s") || chave.endsWith("_ms")
-                || chave.endsWith("max_por_tick") || chave.endsWith("horizontal") || chave.endsWith("vertical") || chave.endsWith("intervalo")
-                || chave.endsWith("limite_slots") || chave.endsWith("raio_chunks"))) {
-            try {
-                Integer.parseInt(v);
-            } catch (NumberFormatException e) {
-                return Msg.f("{} precisa ser um numero", chave);
+        } else {
+            String erro = validar(chave, v);
+            if (erro != null) {
+                return erro;
             }
-        } else if (chave.startsWith("limpeza_itens.proteger") && !(v.equals("true") || v.equals("false"))) {
-            return Msg.f("{} precisa ser true ou false", chave);
         }
         Path caminho = pastaConfig().resolve(ARQUIVO);
         Properties props = lerArquivo(caminho);
@@ -579,10 +690,12 @@ public final class Config {
         return lista != null && lista.getModFileById(modId) != null;
     }
 
-    private static int lerInt(Properties props, String chave, int padrao, int min, int max) {
+    /** Le um inteiro limitado a faixa de ESPECS ("auto" ou valor invalido = padrao do preset). */
+    private static int lerInt(Properties props, String chave, int padrao) {
+        Espec e = espec(chave);
         try {
-            return Math.max(min, Math.min(max, Integer.parseInt(props.getProperty(chave, Integer.toString(padrao)).trim())));
-        } catch (NumberFormatException e) {
+            return Math.max(e.min(), Math.min(e.max(), Integer.parseInt(props.getProperty(chave, Integer.toString(padrao)).trim())));
+        } catch (NumberFormatException ex) {
             return padrao;
         }
     }

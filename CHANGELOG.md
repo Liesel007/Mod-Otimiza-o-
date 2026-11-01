@@ -3,6 +3,19 @@
 HLO: HL Optimization, for Forge 1.20.1. The detailed notes (in Portuguese, with test results) are in
 [`mod/README.md`](mod/README.md#histórico-de-versões).
 
+## 0.3.1
+
+- **Panel redesign**: custom-drawn tabs, pill buttons, bars, section headers, striped lists, a draggable scrollbar and
+  a footer bar.
+- **Config tab without broken values**: numbers are edited with sliders limited to the range the server accepts
+  (logarithmic for wide ranges, with ‹ › for fine steps and an AUTO switch for values that follow the preset);
+  true/false values are switches; lists are checked as you type and turn red when invalid. Changed values are marked,
+  each one has its own Undo, and the footer has Undo and Save (N). Nothing is sent while a value is invalid.
+- The server now validates every editable key against the same ranges (it used to accept any number and
+  unchecked lists).
+- Network channel `hlotimizacao:tela`, which accepts any HLO version: different panel formats show a "update HLO"
+  message instead of being refused or decoded wrongly.
+
 ## 0.3.0
 
 - **Display name** is now "HLO: HL Optimization" (mod id unchanged: `hlotimizacao`). Generic English description.

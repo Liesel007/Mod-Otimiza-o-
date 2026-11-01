@@ -1,13 +1,13 @@
 package com.hlotimizacao.cliente.tela;
 
 import com.hlotimizacao.PainelStatus;
+import com.hlotimizacao.config.Config;
 import com.hlotimizacao.config.Modulo;
 import com.hlotimizacao.rede.DadosPainel;
 import com.hlotimizacao.rede.DadosPainel.Aba;
 import com.hlotimizacao.rede.RedeHL;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.ConfirmScreen;
 import net.minecraft.client.gui.screens.Screen;
@@ -15,6 +15,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.util.FormattedCharSequence;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -24,19 +25,32 @@ import java.util.Set;
 /**
  * Tela do /hl (e da tecla F8): abas com tudo o que o mod mostra. Os dados vem do servidor
  * (DadosPainel) a cada 1 s, so da aba aberta. Nao pausa o jogo. Os botoes de acao so aparecem
- * para operadores, mas a permissao e conferida de novo no servidor.
+ * ativos para operadores, mas a permissao e conferida de novo no servidor.
+ * Tudo e desenhado aqui (abas, botoes, barras, controles deslizantes), sem os botoes cinza do Minecraft.
  */
 public class TelaHL extends Screen {
-    private static final int LARGURA_MAX = 420;
-    private static final int ALTURA_MAX = 260;
-    private static final int LINHA = 11;
-    private static final int VERDE = 0x55FF55;
-    private static final int AMARELO = 0xFFFF55;
-    private static final int VERMELHO = 0xFF5555;
-    private static final int CINZA = 0xAAAAAA;
-    private static final int CINZA_ESCURO = 0x555555;
-    private static final int BRANCO = 0xFFFFFF;
-    private static final int OURO = 0xFFAA00;
+    private static final int LARGURA_MAX = 440;
+    private static final int ALTURA_MAX = 270;
+    private static final int LINHA = 12;
+    private static final int TOPO = 36;
+    private static final int RODAPE = 16;
+
+    // cores do texto (RGB) e da moldura (ARGB)
+    private static final int VERDE = 0x5BE37D;
+    private static final int AMARELO = 0xFFD54F;
+    private static final int VERMELHO = 0xFF6B6B;
+    private static final int CINZA = 0xA4ABB5;
+    private static final int CINZA_ESCURO = 0x5F6670;
+    private static final int BRANCO = 0xECEFF4;
+    private static final int OURO = 0xFFB547;
+    private static final int AZUL = 0x6CB8FF;
+    private static final int FUNDO = 0xF2121519;
+    private static final int FUNDO_BARRA = 0xFF1A1E25;
+    private static final int FUNDO_CAMPO = 0xFF0C0E12;
+    private static final int BORDA = 0xFF343A45;
+    private static final int BORDA_OURO = 0xFF7A5C24;
+    private static final int LISTRA = 0x0AFFFFFF;
+    private static final int REALCE = 0x1CFFFFFF;
 
     private DadosPainel dados;
     private Aba aba;
@@ -53,8 +67,8 @@ public class TelaHL extends Screen {
     private int ticks;
     private final List<Linha> linhas = new ArrayList<>();
     private final Set<Integer> avisosAbertos = new HashSet<>();
-    private final Map<String, EditBox> campos = new LinkedHashMap<>();
-    private final Map<String, String> camposOriginais = new LinkedHashMap<>();
+    private final Map<String, ControleConfig> controles = new LinkedHashMap<>();
+    private final List<Object[]> abas = new ArrayList<>(); // {Aba, int[] retangulo}
     private String mensagem;
     private int corMensagem = BRANCO;
     private long mensagemAte;
@@ -62,13 +76,20 @@ public class TelaHL extends Screen {
     private List<FormattedCharSequence> linhasModal;
     private String textoModal;
     private double rolagemModal;
+    private ControleConfig arrastando;
+    private int[] trilhoArrastado;
+    private boolean arrastandoBarra;
+    private final Map<String, int[]> zonasRodape = new HashMap<>();
 
-    /** Um botao de texto dentro de uma linha ("[Limpar agora]"). */
-    private record Acao(Component rotulo, Runnable executar, boolean ativa, Component confirmar) {
+    /** Um botao dentro de uma linha ("Limpar agora"). cor = cor do texto (0 = padrao). */
+    private record Acao(Component rotulo, Runnable executar, boolean ativa, Component confirmar, int cor) {
+        Acao(Component rotulo, Runnable executar, boolean ativa, Component confirmar) {
+            this(rotulo, executar, ativa, confirmar, 0);
+        }
     }
 
     private enum Tipo {
-        TEXTO, BARRA, GRAFICO, SEPARADOR, ESPACO, CAMPO
+        TEXTO, BARRA, GRAFICO, SEPARADOR, ESPACO, TITULO, CONTROLE
     }
 
     private static final class Linha {
@@ -81,12 +102,14 @@ public class TelaHL extends Screen {
         final List<Acao> acoes = new ArrayList<>();
         float fracao;
         int cor;
-        String campo;
+        boolean listra;
+        ControleConfig controle;
         FormattedCharSequence textoFormatado;
         int altura = LINHA;
         // calculado ao desenhar
         int yTela;
         final List<int[]> retangulosAcoes = new ArrayList<>();
+        final Map<String, int[]> zonas = new HashMap<>();
     }
 
     public TelaHL(DadosPainel dados) {
@@ -106,24 +129,36 @@ public class TelaHL extends Screen {
         h = Math.min(ALTURA_MAX, height - 16);
         x0 = (width - w) / 2;
         y0 = (height - h) / 2;
-        cx = x0 + 6;
-        cy = y0 + 36;
-        cw = w - 12;
-        ch = h - 42;
-        int x = x0 + 4;
-        for (Aba a : Aba.values()) {
-            Component rotulo = Component.translatable("hlotimizacao.tela.aba." + a.name().toLowerCase());
-            int largura = font.width(rotulo) + 8;
-            Aba destino = a;
-            Button botao = Button.builder(rotulo, b -> trocarAba(destino)).bounds(x, y0 + 17, largura, 14).build();
-            botao.active = a != aba;
-            addRenderableWidget(botao);
-            x += largura + 2;
-        }
-        addRenderableWidget(Button.builder(Component.literal("X"), b -> onClose()).bounds(x0 + w - 15, y0 + 2, 13, 13).build());
-        campos.values().forEach(this::addWidget);
+        cx = x0 + 7;
+        cy = y0 + TOPO + 2;
+        cw = w - 18; // sobra espaco para a barra de rolagem
+        ch = h - TOPO - RODAPE - 4;
+        montarAbas();
+        controles.values().stream().filter(c -> c.caixa != null).forEach(c -> addWidget(c.caixa));
         RedeHL.CANAL.sendToServer(new RedeHL.C2SInscrever(aba));
         reconstruir();
+    }
+
+    /** Abas desenhadas aqui; se nao couberem, o espaco entre elas diminui antes de cortar o texto. */
+    private void montarAbas() {
+        abas.clear();
+        Aba[] todas = Aba.values();
+        int disponivel = w - 10;
+        int texto = 0;
+        for (Aba a : todas) {
+            texto += font.width(rotuloAba(a));
+        }
+        int margem = Math.max(2, Math.min(8, (disponivel - texto - (todas.length - 1) * 2) / (todas.length * 2)));
+        int x = x0 + 5;
+        for (Aba a : todas) {
+            int largura = font.width(rotuloAba(a)) + margem * 2;
+            abas.add(new Object[]{a, new int[]{x, y0 + 19, x + largura, y0 + 33}});
+            x += largura + 2;
+        }
+    }
+
+    private static Component rotuloAba(Aba a) {
+        return Component.translatable("hlotimizacao.tela.aba." + a.name().toLowerCase());
     }
 
     @Override
@@ -137,15 +172,19 @@ public class TelaHL extends Screen {
         if (ticks % 40 == 0) {
             RedeHL.CANAL.sendToServer(new RedeHL.C2SInscrever(aba)); // sinal de vida: sem ele o servidor para em 5 s
         }
-        campos.values().forEach(EditBox::tick);
+        controles.values().stream().filter(c -> c.caixa != null).forEach(c -> c.caixa.tick());
     }
 
     private void trocarAba(Aba nova) {
+        if (nova == aba) {
+            return;
+        }
         aba = nova;
         rolagem = 0;
+        arrastando = null;
         if (nova != Aba.CONFIG) {
-            campos.values().forEach(this::removeWidget);
-            campos.clear();
+            controles.values().stream().filter(c -> c.caixa != null).forEach(c -> removeWidget(c.caixa));
+            controles.clear();
         }
         RedeHL.CANAL.sendToServer(new RedeHL.C2SInscrever(nova));
         rebuildWidgets();
@@ -212,7 +251,16 @@ public class TelaHL extends Screen {
     private void separador() {
         Linha l = new Linha();
         l.tipo = Tipo.SEPARADOR;
-        l.altura = 6;
+        l.altura = 7;
+        linhas.add(l);
+    }
+
+    /** Titulo de secao: texto dourado com um filete ate a direita. */
+    private void titulo(String s) {
+        Linha l = new Linha();
+        l.tipo = Tipo.TITULO;
+        l.texto = Component.literal(s);
+        l.altura = linhas.isEmpty() ? 13 : 17;
         linhas.add(l);
     }
 
@@ -223,7 +271,7 @@ public class TelaHL extends Screen {
         l.texto2 = Component.literal(valor).withStyle(st -> st.withColor(cor));
         l.fracao = Math.max(0, Math.min(1, fracao));
         l.cor = cor;
-        l.altura = 13;
+        l.altura = 15;
         linhas.add(l);
     }
 
@@ -262,7 +310,7 @@ public class TelaHL extends Screen {
             case AVISOS -> avisos();
             case CONFIG -> config();
         }
-        alturaConteudo = linhas.stream().mapToInt(l -> l.altura).sum();
+        alturaConteudo = linhas.stream().mapToInt(l -> l.altura).sum() + 4;
         rolagem = Math.max(0, Math.min(rolagem, Math.max(0, alturaConteudo - ch)));
     }
 
@@ -309,22 +357,25 @@ public class TelaHL extends Screen {
             return;
         }
         if (dados.mudancaPendente) {
-            texto(t("reiniciar"), AMARELO);
+            texto("⟳ " + t("reiniciar"), AMARELO);
             espaco();
         }
+        boolean listra = false;
         for (DadosPainel.Modulo m : dados.modulos) {
             boolean ligado = m.estado() == DadosPainel.Modulo.LIGADO;
-            String simbolo = ligado ? "✔" : m.estado() == DadosPainel.Modulo.NAO_NECESSARIO ? "–" : "✘";
-            int cor = ligado ? VERDE : m.estado() == DadosPainel.Modulo.NAO_NECESSARIO ? CINZA_ESCURO : CINZA;
+            boolean naoNecessario = m.estado() == DadosPainel.Modulo.NAO_NECESSARIO;
+            int cor = ligado ? VERDE : naoNecessario ? CINZA_ESCURO : VERMELHO;
             String resumo = m.resumo();
             Modulo local = moduloLocal(m.chave());
             if (ligado && m.soCliente() && local != null) {
                 resumo = PainelStatus.resumoCurto(local); // contadores deste cliente (GPU, tooltip)
             }
-            Linha l = texto(Component.literal(simbolo + " ").withStyle(st -> st.withColor(cor))
+            Linha l = texto(Component.literal("● ").withStyle(st -> st.withColor(cor))
                     .append(Component.literal(m.nome()).withStyle(st -> st.withColor(ligado ? BRANCO : CINZA))));
-            l.texto2 = Component.literal(resumo).withStyle(st -> st.withColor(ligado ? CINZA : cor));
-            l.coluna2 = 172;
+            l.texto2 = Component.literal(resumo).withStyle(st -> st.withColor(ligado ? CINZA : CINZA_ESCURO));
+            l.coluna2 = 150;
+            l.listra = listra;
+            listra = !listra;
             l.dica = new ArrayList<>(List.of(Component.literal(m.nome()).withStyle(ChatFormatting.GOLD), Component.literal(m.descricao()),
                     Component.literal("modulo." + m.chave() + "=" + m.valor()).withStyle(ChatFormatting.GRAY)));
             if (!m.detalhe().isEmpty()) {
@@ -335,8 +386,13 @@ public class TelaHL extends Screen {
                 case "on" -> "off";
                 default -> "auto";
             };
-            l.acoes.add(new Acao(Component.literal("[" + m.valor().toUpperCase() + "]"),
-                    () -> RedeHL.CANAL.sendToServer(new RedeHL.C2SAcao(RedeHL.Acao.MODULO, m.chave() + "=" + proximo)), dados.operador, null));
+            int corValor = switch (m.valor()) {
+                case "on" -> VERDE;
+                case "off" -> VERMELHO;
+                default -> AZUL;
+            };
+            l.acoes.add(new Acao(Component.literal(m.valor().toUpperCase()),
+                    () -> RedeHL.CANAL.sendToServer(new RedeHL.C2SAcao(RedeHL.Acao.MODULO, m.chave() + "=" + proximo)), dados.operador, null, corValor));
         }
     }
 
@@ -354,10 +410,10 @@ public class TelaHL extends Screen {
         if (carregando(p)) {
             return;
         }
-        texto(t("mspt_5min"), BRANCO);
+        titulo(t("mspt_5min"));
         Linha g = new Linha();
         g.tipo = Tipo.GRAFICO;
-        g.altura = 72;
+        g.altura = 74;
         linhas.add(g);
         texto(t("min_max", Math.round(p.minMs), Math.round(p.maxMs)), CINZA);
         Linha custo = texto(p.custoMs < 0 ? t("custo_medindo") : t("custo", String.format(PainelStatus.loc(), "%.3f", p.custoMs)), CINZA);
@@ -368,14 +424,16 @@ public class TelaHL extends Screen {
         texto(t("coleta_lixo", p.pausasGc) + (p.pausasGc > 0 ? ", " + t("maior") + " " + PainelStatus.duracao(p.maiorPausaGcMs) : "")
                 + " · -Xms " + (p.xms > 0 ? gb(p.xms) + " GB" : "?") + " / -Xmx " + gb(dados.memMax) + " GB", p.pausasGc > 0 ? AMARELO : CINZA);
         texto(t("memoria_detalhe", gb(dados.memUsada), gb(p.memAlocada), gb(dados.memMax)), CINZA);
-        espaco();
-        texto(t("dimensoes"), BRANCO);
+        titulo(t("dimensoes"));
+        boolean listra = false;
         for (DadosPainel.Dimensao dim : p.dimensoes) {
             boolean pesada = dim.entidades() > 300 || dim.itens() > 200;
-            Linha l = texto(Component.literal("  " + nomeDimensao(dim.id())).withStyle(st -> st.withColor(pesada ? AMARELO : BRANCO)));
+            Linha l = texto(Component.literal(nomeDimensao(dim.id())).withStyle(st -> st.withColor(pesada ? AMARELO : BRANCO)));
             l.texto2 = Component.literal(t("dimensao_linha", dim.jogadores(), PainelStatus.num(dim.chunks()), PainelStatus.num(dim.entidades()))
                     + (pesada ? "  ⚠" : "")).withStyle(st -> st.withColor(pesada ? AMARELO : CINZA));
-            l.coluna2 = 120;
+            l.coluna2 = 130;
+            l.listra = listra;
+            listra = !listra;
             l.dica = List.of(Component.literal(dim.id()), Component.literal(t("itens_no_chao") + ": " + PainelStatus.num(dim.itens())));
         }
         espaco();
@@ -416,14 +474,17 @@ public class TelaHL extends Screen {
         }
         lc.dica = dica;
         separador();
+        boolean listra = false;
         for (DadosPainel.Registro r : l.registros) {
             Linha lr = texto(Component.literal(r.hora() + "  ").withStyle(st -> st.withColor(CINZA))
                     .append(Component.literal(String.format("%6s", PainelStatus.duracao(r.duracaoMs()))).withStyle(st -> st.withColor(AMARELO))));
             lr.texto2 = Component.literal(r.causa() + (r.detalhe().isEmpty() ? "" : " (" + r.detalhe() + ")")).withStyle(st -> st.withColor(BRANCO));
             lr.coluna2 = 100;
+            lr.listra = listra;
+            listra = !listra;
             lr.dica = List.of(Component.literal(r.tipo()), Component.literal(r.causa() + (r.detalhe().isEmpty() ? "" : ": " + r.detalhe())));
             int indice = r.indice();
-            lr.acoes.add(new Acao(Component.literal("[" + t("ver") + "]"),
+            lr.acoes.add(new Acao(Component.literal(t("ver")),
                     () -> RedeHL.CANAL.sendToServer(new RedeHL.C2SAcao(RedeHL.Acao.DETALHE_LAG, Integer.toString(indice))), true, null));
         }
     }
@@ -440,30 +501,29 @@ public class TelaHL extends Screen {
         String quando = l.limpando ? t("limpando") : l.segundos < 0 ? "-" : String.format("%02d:%02d", l.segundos / 60, l.segundos % 60);
         Linha topo = texto(t("proxima_limpeza_em") + "  " + quando, BRANCO);
         long total = l.dimensoes.stream().mapToLong(DadosPainel.DimensaoItens::itens).sum();
-        topo.acoes.add(new Acao(Component.literal("[" + t("limpar_agora") + "]"),
+        topo.acoes.add(new Acao(Component.literal(t("limpar_agora")),
                 () -> RedeHL.CANAL.sendToServer(new RedeHL.C2SAcao(RedeHL.Acao.LIMPAR, "")), dados.operador,
-                Component.literal(t("confirmar_limpar", PainelStatus.num(total)))));
-        topo.acoes.add(new Acao(Component.literal("[" + t("cancelar_proxima") + "]"),
+                Component.literal(t("confirmar_limpar", PainelStatus.num(total))), AMARELO));
+        topo.acoes.add(new Acao(Component.literal(t("cancelar_proxima")),
                 () -> RedeHL.CANAL.sendToServer(new RedeHL.C2SAcao(RedeHL.Acao.CANCELAR, "")), dados.operador, null));
-        espaco();
-        texto(t("itens_por_dimensao"), BRANCO);
+        titulo(t("itens_por_dimensao"));
         long maior = l.dimensoes.stream().mapToLong(DadosPainel.DimensaoItens::itens).max().orElse(1);
         for (DadosPainel.DimensaoItens dim : l.dimensoes) {
             Linha ld = new Linha();
             ld.tipo = Tipo.BARRA;
-            ld.texto = Component.literal("  " + nomeDimensao(dim.id()));
+            ld.texto = Component.literal(nomeDimensao(dim.id()));
             ld.texto2 = Component.literal(PainelStatus.num(dim.itens())).withStyle(st -> st.withColor(BRANCO));
             ld.fracao = (float) dim.itens() / Math.max(1, maior);
             ld.cor = dim.itens() > 200 ? AMARELO : VERDE;
-            ld.altura = 13;
-            ld.coluna2 = 120;
+            ld.altura = 15;
+            ld.coluna2 = 110;
             String id = dim.id();
-            ld.acoes.add(new Acao(Component.literal("[" + t("ir_ate_la") + "]"),
+            ld.acoes.add(new Acao(Component.literal(t("ir_ate_la")),
                     () -> RedeHL.CANAL.sendToServer(new RedeHL.C2SAcao(RedeHL.Acao.IR_ITENS, id)), dados.operador, null));
             linhas.add(ld);
         }
         if (l.dimensoes.isEmpty()) {
-            texto("  " + t("nenhum_item"), CINZA);
+            texto(t("nenhum_item"), CINZA);
         }
         espaco();
         texto(t("limpeza_sessao", PainelStatus.num(l.limpezas), PainelStatus.num(l.removidos), PainelStatus.num(l.protegidos)), CINZA);
@@ -479,18 +539,21 @@ public class TelaHL extends Screen {
             int indice = i++;
             boolean aberto = avisosAbertos.contains(indice);
             Linha l = texto(Component.literal("⚠ ").withStyle(st -> st.withColor(AMARELO)).append(Component.literal(a.curto()).withStyle(st -> st.withColor(BRANCO))));
-            l.acoes.add(new Acao(Component.literal("[" + t(aberto ? "esconder" : "como_resolver") + "]"), () -> {
+            l.listra = indice % 2 == 1;
+            l.acoes.add(new Acao(Component.literal(t(aberto ? "esconder" : "como_resolver")), () -> {
                 if (!avisosAbertos.remove(indice)) {
                     avisosAbertos.add(indice);
                 }
                 reconstruir();
             }, true, null));
             if (aberto) {
-                for (FormattedCharSequence parte : font.split(Component.literal(a.detalhe()), cw - 20)) {
+                for (FormattedCharSequence parte : font.split(Component.literal(a.detalhe()), cw - 24)) {
                     Linha d = new Linha();
                     d.textoFormatado = parte;
+                    d.altura = 10;
                     linhas.add(d);
                 }
+                espaco();
             }
         }
         if (dados.mixinsOk) {
@@ -501,48 +564,109 @@ public class TelaHL extends Screen {
         }
     }
 
+    // ---------- aba Config ----------
+
     private void config() {
         if (carregando(dados.config)) {
             return;
         }
         if (!dados.operador) {
-            texto(t("so_leitura"), AMARELO);
+            texto("🔒 " + t("so_leitura"), AMARELO);
+        } else {
+            texto(t("config_ajuda"), CINZA);
         }
+        String grupo = null;
         for (DadosPainel.ItemConfig item : dados.config) {
-            Linha rotulo = texto(item.chave(), BRANCO);
-            rotulo.dica = List.of(Component.literal(item.descricao()));
-            Linha campo = new Linha();
-            campo.tipo = Tipo.CAMPO;
-            campo.campo = item.chave();
-            campo.altura = 18;
-            linhas.add(campo);
-            if (!campos.containsKey(item.chave())) {
-                EditBox caixa = new EditBox(font, 0, 0, cw - 8, 14, Component.literal(item.chave()));
-                caixa.setMaxLength(400);
-                caixa.setValue(item.valor());
-                caixa.setEditable(dados.operador);
-                campos.put(item.chave(), caixa);
-                camposOriginais.put(item.chave(), item.valor());
-                addWidget(caixa);
+            String prefixo = item.chave().contains(".") ? item.chave().substring(0, item.chave().indexOf('.')) : item.chave();
+            if (!prefixo.equals(grupo)) {
+                grupo = prefixo;
+                titulo(Component.translatable("hlotimizacao.tela.grupo." + prefixo).getString());
             }
+            ControleConfig c = controles.get(item.chave());
+            if (c == null) {
+                c = new ControleConfig(item);
+                controles.put(item.chave(), c);
+                if (c.tipo == Config.TipoChave.TEXTO || c.tipo == Config.TipoChave.LISTA_NUMEROS || c.tipo == Config.TipoChave.LISTA_PARES) {
+                    ControleConfig alvo = c;
+                    EditBox caixa = new EditBox(font, 0, 0, 100, 13, Component.literal(item.chave()));
+                    caixa.setMaxLength(400);
+                    caixa.setValue(item.valor());
+                    caixa.setEditable(dados.operador);
+                    caixa.moveCursorToStart();
+                    caixa.setResponder(v -> alvo.valor = v);
+                    c.caixa = caixa;
+                    addWidget(caixa);
+                }
+            } else {
+                c.atualizar(item);
+            }
+            Linha l = new Linha();
+            l.tipo = Tipo.CONTROLE;
+            l.controle = c;
+            l.altura = 30;
+            List<Component> dica = new ArrayList<>();
+            dica.add(Component.literal(item.descricao()).withStyle(ChatFormatting.WHITE));
+            dica.add(Component.literal(t("chave", item.chave())).withStyle(ChatFormatting.DARK_GRAY));
+            if (c.tipo == Config.TipoChave.NUMERO) {
+                dica.add(Component.literal(t("faixa", PainelStatus.num(item.min()), PainelStatus.num(item.max()))).withStyle(ChatFormatting.GRAY));
+                if (item.emUso() >= 0) {
+                    dica.add(Component.literal(t("em_uso", PainelStatus.num(item.emUso()))).withStyle(ChatFormatting.GRAY));
+                }
+                dica.add(Component.literal(t("dica_controle")).withStyle(ChatFormatting.DARK_AQUA));
+                if (item.aceitaAuto()) {
+                    dica.add(Component.literal(t("dica_auto")).withStyle(ChatFormatting.DARK_AQUA));
+                }
+            }
+            l.dica = dica;
+            linhas.add(l);
         }
-        espaco();
-        Linha salvar = texto(t("config_ajuda"), CINZA);
-        salvar.acoes.add(new Acao(Component.literal("[" + t("salvar_recarregar") + "]"), this::salvarConfig, dados.operador, null));
+    }
+
+    /** Descricao sem o que o controle ja mostra ("(true/false)", "(1 a 1440)"). */
+    private static String rotuloControle(String descricao) {
+        return descricao.replaceAll("\\s*\\(true/false\\)", "")
+                .replaceAll("\\(true/false;\\s*", "(")
+                .replaceAll("\\s*\\(\\d+ (a|to) \\d+\\)", "");
+    }
+
+    private int mudancas() {
+        return (int) controles.values().stream().filter(ControleConfig::mudou).count();
     }
 
     private void salvarConfig() {
-        int mudados = 0;
-        for (Map.Entry<String, EditBox> e : campos.entrySet()) {
-            String valor = e.getValue().getValue();
-            if (!valor.equals(camposOriginais.get(e.getKey()))) {
-                RedeHL.CANAL.sendToServer(new RedeHL.C2SAcao(RedeHL.Acao.CONFIG, e.getKey() + "=" + valor));
-                camposOriginais.put(e.getKey(), valor);
-                mudados++;
+        List<ControleConfig> mudados = controles.values().stream().filter(ControleConfig::mudou).toList();
+        if (mudados.isEmpty()) {
+            mensagem(true, t("sem_mudancas"));
+            return;
+        }
+        for (ControleConfig c : mudados) {
+            String erro = c.erro();
+            if (erro != null) {
+                mensagem(false, t("corrija") + " " + erro);
+                return;
             }
         }
+        for (ControleConfig c : mudados) {
+            String valor = c.valor.trim();
+            RedeHL.CANAL.sendToServer(new RedeHL.C2SAcao(RedeHL.Acao.CONFIG, c.item.chave() + "=" + valor));
+            c.original = valor;
+            c.valor = valor;
+        }
         RedeHL.CANAL.sendToServer(new RedeHL.C2SAcao(RedeHL.Acao.RECARREGAR, ""));
-        mensagem(true, t("config_enviada", mudados));
+        mensagem(true, t("config_enviada", mudados.size()));
+    }
+
+    private void desfazerTudo() {
+        for (ControleConfig c : controles.values()) {
+            desfazer(c);
+        }
+    }
+
+    private static void desfazer(ControleConfig c) {
+        c.valor = c.original;
+        if (c.caixa != null) {
+            c.caixa.setValue(c.original);
+        }
     }
 
     // ---------- desenho ----------
@@ -550,45 +674,136 @@ public class TelaHL extends Screen {
     @Override
     public void render(GuiGraphics g, int mx, int my, float parcial) {
         renderBackground(g);
-        g.fill(x0, y0, x0 + w, y0 + h, 0xE0101010);
-        g.renderOutline(x0, y0, w, h, 0xFF806020);
-        g.drawString(font, Component.literal(t("titulo_versao", dados == null ? "?" : dados.versao)).withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD),
-                x0 + 6, y0 + 5, OURO);
-        g.fill(x0 + 2, y0 + 33, x0 + w - 2, y0 + 34, 0xFF806020);
+        // moldura
+        g.fill(x0, y0, x0 + w, y0 + h, FUNDO);
+        g.fill(x0, y0, x0 + w, y0 + 17, FUNDO_BARRA);
+        g.fill(x0, y0 + h - RODAPE, x0 + w, y0 + h, FUNDO_BARRA);
+        g.renderOutline(x0, y0, w, h, BORDA_OURO);
+        g.fill(x0 + 1, y0 + 17, x0 + w - 1, y0 + 18, BORDA);
+        g.drawString(font, Component.literal("HLO").withStyle(ChatFormatting.BOLD), x0 + 7, y0 + 5, OURO, false);
+        String sub = (dados == null ? "" : dados.versao) + (dados != null && dados.dedicado ? "  ·  " + t("servidor_dedicado") : "");
+        g.drawString(font, sub, x0 + 7 + font.width(Component.literal("HLO").withStyle(ChatFormatting.BOLD)) + 6, y0 + 5, CINZA_ESCURO, false);
+        desenharFechar(g, mx, my);
+        desenharAbas(g, mx, my);
         super.render(g, mx, my, parcial);
 
-        g.enableScissor(cx, cy, cx + cw, cy + ch);
-        int y = cy - (int) rolagem;
+        g.enableScissor(cx - 3, cy, cx + cw + 3, cy + ch);
+        int y = cy + 2 - (int) rolagem;
         Linha sobMouse = null;
         for (Linha l : linhas) {
             l.yTela = y;
             l.retangulosAcoes.clear();
-            if (y + l.altura >= cy && y <= cy + ch) {
+            l.zonas.clear();
+            boolean visivel = y + l.altura >= cy && y <= cy + ch;
+            if (visivel) {
                 desenhar(g, l, y, mx, my);
                 if (my >= Math.max(y, cy) && my < Math.min(y + l.altura, cy + ch) && mx >= cx && mx < cx + cw) {
                     sobMouse = l;
                 }
-            } else if (l.tipo == Tipo.CAMPO && campos.containsKey(l.campo)) {
-                campos.get(l.campo).visible = false;
+            } else if (l.controle != null && l.controle.caixa != null) {
+                l.controle.caixa.visible = false;
             }
             y += l.altura;
         }
         g.disableScissor();
-        if (alturaConteudo > ch) {
-            int barraAltura = Math.max(10, ch * ch / alturaConteudo);
-            int barraY = cy + (int) ((ch - barraAltura) * (rolagem / (alturaConteudo - ch)));
-            g.fill(cx + cw - 2, barraY, cx + cw, barraY + barraAltura, 0xFF888888);
-        }
-        if (mensagem != null && System.currentTimeMillis() < mensagemAte) {
-            g.drawString(font, font.plainSubstrByWidth(mensagem, w - 12), x0 + 6, y0 + h - 10, corMensagem);
-        }
+        desenharRolagem(g, mx, my);
+        desenharRodape(g, mx, my);
         if (tituloModal != null) {
             desenharModal(g, mx, my);
             return;
         }
-        if (sobMouse != null && sobMouse.dica != null && !sobreAcao(sobMouse, mx, my)) {
-            g.renderComponentTooltip(font, sobMouse.dica, mx, my);
+        if (arrastando == null && sobMouse != null && sobMouse.dica != null && !sobreAcao(sobMouse, mx, my)) {
+            List<Component> dica = sobMouse.dica;
+            if (sobMouse.controle != null && sobMouse.controle.mudou() && sobMouse.controle.erro() != null) {
+                dica = new ArrayList<>(dica);
+                dica.add(Component.literal(sobMouse.controle.erro()).withStyle(ChatFormatting.RED));
+            }
+            List<FormattedCharSequence> quebrada = new ArrayList<>();
+            for (Component linha : dica) {
+                quebrada.addAll(font.split(linha, 240));
+            }
+            g.renderTooltip(font, quebrada, mx, my);
         }
+    }
+
+    private void desenharFechar(GuiGraphics g, int mx, int my) {
+        int bx = x0 + w - 16;
+        boolean sobre = mx >= bx && mx < bx + 12 && my >= y0 + 3 && my < y0 + 15;
+        if (sobre) {
+            g.fill(bx, y0 + 3, bx + 12, y0 + 15, 0x40FF6B6B);
+        }
+        g.drawString(font, "✕", bx + 3, y0 + 5, sobre ? VERMELHO : CINZA, false);
+    }
+
+    private void desenharAbas(GuiGraphics g, int mx, int my) {
+        g.fill(x0 + 1, y0 + 33, x0 + w - 1, y0 + 34, BORDA);
+        for (Object[] item : abas) {
+            Aba a = (Aba) item[0];
+            int[] r = (int[]) item[1];
+            boolean atual = a == aba;
+            boolean sobre = !atual && mx >= r[0] && mx < r[2] && my >= r[1] && my < r[3];
+            if (atual) {
+                g.fill(r[0], r[1], r[2], r[3], 0xFF262C36);
+                g.fill(r[0], r[3] - 2, r[2], r[3], 0xFF000000 | OURO);
+            } else if (sobre) {
+                g.fill(r[0], r[1], r[2], r[3], 0xFF1E232B);
+            }
+            Component rotulo = rotuloAba(a);
+            int largura = Math.min(font.width(rotulo), r[2] - r[0] - 2);
+            g.drawString(font, cortarLargura(rotulo, largura), r[0] + (r[2] - r[0] - largura) / 2, r[1] + 3,
+                    atual ? BRANCO : sobre ? 0xD6DAE0 : CINZA, false);
+        }
+    }
+
+    private void desenharRolagem(GuiGraphics g, int mx, int my) {
+        if (alturaConteudo <= ch) {
+            return;
+        }
+        int[] r = barraRolagem();
+        int trilhoX = x0 + w - 7;
+        g.fill(trilhoX, cy, trilhoX + 3, cy + ch, 0x30FFFFFF);
+        boolean sobre = arrastandoBarra || (mx >= trilhoX - 2 && mx < trilhoX + 5 && my >= r[0] && my < r[1]);
+        g.fill(trilhoX, r[0], trilhoX + 3, r[1], sobre ? 0xFFD0D4DA : 0xFF7C838E);
+    }
+
+    /** {y inicial, y final} do cursor da barra de rolagem. */
+    private int[] barraRolagem() {
+        int altura = Math.max(14, ch * ch / Math.max(1, alturaConteudo));
+        int y = cy + (int) ((ch - altura) * (rolagem / Math.max(1, alturaConteudo - ch)));
+        return new int[]{y, y + altura};
+    }
+
+    private void desenharRodape(GuiGraphics g, int mx, int my) {
+        zonasRodape.clear();
+        int y = y0 + h - RODAPE + 4;
+        int direita = x0 + w - 6;
+        if (aba == Aba.CONFIG && dados != null && dados.config != null && dados.operador) {
+            int n = mudancas();
+            direita = botao(g, "salvar", t("salvar_n", n), direita, y - 2, n > 0, n > 0 ? VERDE : CINZA_ESCURO, mx, my);
+            direita = botao(g, "desfazer", t("desfazer"), direita - 4, y - 2, n > 0, CINZA, mx, my);
+        }
+        String texto;
+        int cor;
+        if (mensagem != null && System.currentTimeMillis() < mensagemAte) {
+            texto = mensagem;
+            cor = corMensagem;
+        } else {
+            texto = t("rodape");
+            cor = CINZA_ESCURO;
+        }
+        g.drawString(font, font.plainSubstrByWidth(texto, direita - x0 - 14), x0 + 7, y, cor, false);
+    }
+
+    /** Botao com fundo e borda, alinhado pela direita; devolve o x onde ele comeca. */
+    private int botao(GuiGraphics g, String id, String texto, int direita, int y, boolean ativo, int corTexto, int mx, int my) {
+        int largura = font.width(texto) + 10;
+        int x = direita - largura;
+        boolean sobre = ativo && mx >= x && mx < direita && my >= y && my < y + 12;
+        g.fill(x, y, direita, y + 12, sobre ? 0xFF323A47 : 0xFF232933);
+        g.renderOutline(x, y, largura, 12, sobre ? 0xFF6C7686 : BORDA);
+        g.drawString(font, texto, x + 5, y + 2, !ativo ? CINZA_ESCURO : sobre ? AMARELO : corTexto, false);
+        zonasRodape.put(id, new int[]{x, y, direita, y + 12, ativo ? 1 : 0});
+        return x;
     }
 
     private boolean sobreAcao(Linha l, int mx, int my) {
@@ -597,63 +812,211 @@ public class TelaHL extends Screen {
                 return true;
             }
         }
+        for (int[] r : l.zonas.values()) {
+            if (mx >= r[0] && mx < r[2] && my >= r[1] && my < r[3]) {
+                return true;
+            }
+        }
         return false;
     }
 
+    /** Botoes "pilula" da linha, da direita para a esquerda; devolve o x livre a esquerda deles. */
     private int desenharAcoes(GuiGraphics g, Linha l, int y, int mx, int my) {
-        int direita = cx + cw - 4;
+        int direita = cx + cw - 2;
+        int topo = y + (l.altura - 11) / 2;
         for (int i = l.acoes.size() - 1; i >= 0; i--) {
             Acao a = l.acoes.get(i);
-            int largura = font.width(a.rotulo());
+            int largura = font.width(a.rotulo()) + 8;
             int x = direita - largura;
-            boolean sobre = a.ativa() && mx >= x && mx < direita && my >= y && my < y + LINHA;
-            g.drawString(font, a.rotulo(), x, y + 1, !a.ativa() ? CINZA_ESCURO : sobre ? AMARELO : 0x55FFFF, false);
-            l.retangulosAcoes.add(0, new int[]{x, y, direita, y + LINHA});
-            direita = x - 6;
+            boolean sobre = a.ativa() && mx >= x && mx < direita && my >= topo && my < topo + 11;
+            int corBase = a.cor() != 0 ? a.cor() : AZUL;
+            int corTexto = !a.ativa() ? (a.cor() != 0 ? escurecer(escurecer(corBase)) : CINZA_ESCURO) : sobre ? 0xFFFFFF : corBase;
+            g.fill(x, topo, direita, topo + 11, sobre ? 0xFF353E4C : 0xFF20262F);
+            g.renderOutline(x, topo, largura, 11, sobre ? 0xFF7A8597 : !a.ativa() ? 0xFF2A2F37 : 0xFF3D4552);
+            g.drawString(font, a.rotulo(), x + 4, topo + 2, corTexto, false);
+            l.retangulosAcoes.add(0, new int[]{x, topo, direita, topo + 11});
+            direita = x - 4;
         }
         return direita;
     }
 
     private void desenhar(GuiGraphics g, Linha l, int y, int mx, int my) {
+        if (l.listra) {
+            g.fill(cx - 2, y, cx + cw, y + l.altura, LISTRA);
+        }
         switch (l.tipo) {
             case ESPACO -> {
             }
-            case SEPARADOR -> g.fill(cx, y + 2, cx + cw - 4, y + 3, 0xFF444444);
-            case GRAFICO -> desenharGrafico(g, y);
-            case CAMPO -> {
-                EditBox caixa = campos.get(l.campo);
-                if (caixa != null) {
-                    caixa.setX(cx + 2);
-                    caixa.setY(y + 1);
-                    caixa.visible = y + 1 >= cy && y + 15 <= cy + ch;
-                    caixa.render(g, mx, my, 0);
-                }
+            case SEPARADOR -> g.fill(cx, y + 3, cx + cw - 2, y + 4, 0xFF2C323C);
+            case TITULO -> {
+                int ty = y + l.altura - 11;
+                g.drawString(font, l.texto, cx, ty, OURO, false);
+                int fim = cx + font.width(l.texto) + 6;
+                g.fill(fim, ty + 4, cx + cw - 2, ty + 5, 0x40FFB547);
             }
+            case GRAFICO -> desenharGrafico(g, y);
+            case CONTROLE -> desenharControle(g, l, y, mx, my);
             case BARRA -> {
                 int limite = desenharAcoes(g, l, y, mx, my);
-                g.drawString(font, l.texto, cx + 2, y + 2, BRANCO, false);
+                g.drawString(font, cortarLargura(l.texto, (l.coluna2 > 0 ? l.coluna2 : 44) - 6), cx + 2, y + 4, BRANCO, false);
                 int bx = cx + (l.coluna2 > 0 ? l.coluna2 : 44);
-                int bw = Math.min(170, limite - bx - 70);
-                g.fill(bx, y + 2, bx + bw, y + 10, 0xFF333333);
-                g.fill(bx, y + 2, bx + (int) (bw * l.fracao), y + 10, 0xFF000000 | l.cor);
-                g.drawString(font, l.texto2, bx + bw + 6, y + 2, BRANCO, false);
+                int bw = Math.max(40, Math.min(180, limite - bx - 90));
+                desenharTrilho(g, bx, y + 3, bw, 8, l.fracao, l.cor);
+                g.drawString(font, l.texto2, bx + bw + 8, y + 4, BRANCO, false);
             }
             case TEXTO -> {
                 int limite = desenharAcoes(g, l, y, mx, my);
-                boolean clicavel = l.clique != null && mx >= cx && mx < limite && my >= y && my < y + LINHA;
+                boolean clicavel = l.clique != null && mx >= cx && mx < limite && my >= y && my < y + l.altura;
                 if (clicavel) {
-                    g.fill(cx, y, limite, y + LINHA, 0x30FFFFFF);
+                    g.fill(cx - 2, y, limite, y + l.altura, REALCE);
                 }
                 if (l.textoFormatado != null) {
                     g.drawString(font, l.textoFormatado, cx + 14, y + 1, CINZA, false);
                     return;
                 }
-                int fimTexto = l.texto2 != null ? cx + l.coluna2 - 4 : limite - 2;
-                g.drawString(font, cortarLargura(l.texto, fimTexto - cx - 2), cx + 2, y + 1, BRANCO, false);
+                int ty = y + (l.altura - 8) / 2;
+                int fimTexto = l.texto2 != null ? cx + l.coluna2 - 6 : limite - 2;
+                g.drawString(font, cortarLargura(l.texto, fimTexto - cx - 2), cx + 2, ty, BRANCO, false);
                 if (l.texto2 != null) {
-                    g.drawString(font, cortarLargura(l.texto2, limite - (cx + l.coluna2) - 4), cx + l.coluna2, y + 1, CINZA, false);
+                    g.drawString(font, cortarLargura(l.texto2, limite - (cx + l.coluna2) - 4), cx + l.coluna2, ty, CINZA, false);
+                }
+                if (clicavel) {
+                    g.drawString(font, "›", limite - 8, ty, CINZA, false);
                 }
             }
+        }
+    }
+
+    /** Barra com fundo escuro, borda e um brilho na parte de cima do preenchimento. */
+    private static void desenharTrilho(GuiGraphics g, int x, int y, int largura, int altura, float fracao, int cor) {
+        g.fill(x - 1, y - 1, x + largura + 1, y + altura + 1, 0xFF0A0C0F);
+        g.fill(x, y, x + largura, y + altura, 0xFF262B33);
+        int cheio = Math.round(largura * Math.max(0, Math.min(1, fracao)));
+        if (cheio > 0) {
+            g.fill(x, y, x + cheio, y + altura, 0xFF000000 | escurecer(cor));
+            g.fill(x, y, x + cheio, y + Math.max(1, altura / 2), 0xFF000000 | cor);
+        }
+    }
+
+    private static int escurecer(int cor) {
+        int r = (cor >> 16 & 0xFF) * 3 / 4;
+        int gr = (cor >> 8 & 0xFF) * 3 / 4;
+        int b = (cor & 0xFF) * 3 / 4;
+        return r << 16 | gr << 8 | b;
+    }
+
+    // ---------- controles da aba Config ----------
+
+    private void desenharControle(GuiGraphics g, Linha l, int y, int mx, int my) {
+        ControleConfig c = l.controle;
+        boolean editavel = dados.operador;
+        boolean invalido = c.mudou() && c.erro() != null;
+        if (my >= y && my < y + l.altura && mx >= cx && mx < cx + cw) {
+            g.fill(cx - 2, y, cx + cw, y + l.altura, LISTRA);
+        }
+        // linha 1: descricao, marcador de alterado e botao de desfazer este valor
+        int direita = cx + cw - 2;
+        if (c.mudou() && editavel) {
+            String desfazer = t("desfazer");
+            int largura = font.width(desfazer) + 8;
+            int x = direita - largura;
+            boolean sobre = mx >= x && mx < direita && my >= y + 1 && my < y + 12;
+            g.fill(x, y + 1, direita, y + 12, sobre ? 0xFF353E4C : 0xFF20262F);
+            g.renderOutline(x, y + 1, largura, 11, sobre ? 0xFF7A8597 : 0xFF3D4552);
+            g.drawString(font, desfazer, x + 4, y + 3, sobre ? AMARELO : CINZA, false);
+            l.zonas.put("desfazer", new int[]{x, y + 1, direita, y + 12});
+            direita = x - 4;
+        }
+        Component rotulo = Component.literal((c.mudou() ? "● " : "") + rotuloControle(c.item.descricao()))
+                .withStyle(st -> st.withColor(invalido ? VERMELHO : c.mudou() ? AMARELO : BRANCO));
+        g.drawString(font, cortarLargura(rotulo, direita - cx - 2), cx + 2, y + 3, BRANCO, false);
+        int linha2 = y + 15;
+        switch (c.tipo) {
+            case NUMERO -> desenharDeslizante(g, l, c, linha2, editavel, mx, my);
+            case BOOLEANO -> desenharInterruptor(g, l, c, linha2, editavel, mx, my);
+            default -> {
+                if (c.caixa != null) {
+                    c.caixa.setX(cx + 3);
+                    c.caixa.setY(linha2);
+                    c.caixa.setWidth(cw - 8);
+                    c.caixa.setTextColor(invalido ? 0xFF8080 : editavel ? 0xE0E0E0 : 0x8A8F96);
+                    c.caixa.visible = linha2 >= cy && linha2 + 13 <= cy + ch;
+                    c.caixa.render(g, mx, my, 0);
+                    if (invalido && c.caixa.visible) {
+                        g.renderOutline(cx + 2, linha2 - 1, cw - 6, 15, 0xFFFF5555);
+                    }
+                }
+            }
+        }
+    }
+
+    private void desenharDeslizante(GuiGraphics g, Linha l, ControleConfig c, int y, boolean editavel, int mx, int my) {
+        int x = cx + 4;
+        int direita = cx + cw - 4;
+        boolean auto = c.auto();
+        if (c.item.aceitaAuto()) {
+            String rotulo = "AUTO";
+            int largura = font.width(rotulo) + 8;
+            boolean sobre = editavel && mx >= x && mx < x + largura && my >= y && my < y + 11;
+            g.fill(x, y, x + largura, y + 11, auto ? 0xFF1F3A55 : sobre ? 0xFF2C333D : 0xFF1A1E25);
+            g.renderOutline(x, y, largura, 11, auto ? 0xFF4F8FD0 : 0xFF3D4552);
+            g.drawString(font, rotulo, x + 4, y + 2, auto ? AZUL : sobre ? BRANCO : CINZA_ESCURO, false);
+            if (editavel) {
+                l.zonas.put("auto", new int[]{x, y, x + largura, y + 11});
+            }
+            x += largura + 6;
+        }
+        // valor a direita
+        int caixaLargura = 74;
+        int caixaX = direita - caixaLargura;
+        int numero = c.numeroOuEmUso();
+        String texto = auto ? t("auto_valor", PainelStatus.num(numero)) : PainelStatus.num(numero);
+        g.fill(caixaX, y - 1, direita, y + 12, FUNDO_CAMPO);
+        g.renderOutline(caixaX, y - 1, caixaLargura, 13, c.mudou() ? 0xFF8A6A2A : BORDA);
+        g.drawString(font, texto, caixaX + (caixaLargura - font.width(texto)) / 2, y + 2, auto ? CINZA : BRANCO, false);
+        // < trilho >
+        int menosX = x;
+        int maisX = caixaX - 14;
+        int trilhoX1 = menosX + 14;
+        int trilhoX2 = maisX - 4;
+        desenharSeta(g, l, "menos", "‹", menosX, y, editavel, mx, my);
+        desenharSeta(g, l, "mais", "›", maisX, y, editavel, mx, my);
+        float f = c.fracao(numero);
+        int cor = auto || !editavel ? 0x6A7280 : AZUL;
+        int largura = Math.max(10, trilhoX2 - trilhoX1);
+        g.fill(trilhoX1, y + 4, trilhoX1 + largura, y + 7, 0xFF262B33);
+        g.fill(trilhoX1, y + 4, trilhoX1 + Math.round(largura * f), y + 7, 0xFF000000 | cor);
+        int puxadorX = trilhoX1 + Math.round(largura * f) - 3;
+        boolean sobrePuxador = editavel && (arrastando == c || mx >= trilhoX1 - 3 && mx < trilhoX2 + 3 && my >= y - 1 && my < y + 12);
+        g.fill(puxadorX, y, puxadorX + 6, y + 11, sobrePuxador ? 0xFFFFFFFF : auto || !editavel ? 0xFF9099A6 : 0xFFDDE3EA);
+        g.renderOutline(puxadorX, y, 6, 11, 0xFF0A0C0F);
+        if (editavel) {
+            l.zonas.put("trilho", new int[]{trilhoX1 - 3, y - 1, trilhoX2 + 3, y + 12});
+        }
+    }
+
+    private void desenharSeta(GuiGraphics g, Linha l, String id, String seta, int x, int y, boolean editavel, int mx, int my) {
+        boolean sobre = editavel && mx >= x && mx < x + 11 && my >= y && my < y + 11;
+        g.fill(x, y, x + 11, y + 11, sobre ? 0xFF353E4C : 0xFF20262F);
+        g.renderOutline(x, y, 11, 11, sobre ? 0xFF7A8597 : 0xFF3D4552);
+        g.drawString(font, seta, x + 3, y + 2, !editavel ? CINZA_ESCURO : sobre ? AMARELO : BRANCO, false);
+        if (editavel) {
+            l.zonas.put(id, new int[]{x, y, x + 11, y + 11});
+        }
+    }
+
+    private void desenharInterruptor(GuiGraphics g, Linha l, ControleConfig c, int y, boolean editavel, int mx, int my) {
+        boolean ligado = c.valor.trim().equals("true");
+        int x = cx + 4;
+        int largura = 24;
+        boolean sobre = editavel && mx >= x && mx < x + largura + 60 && my >= y && my < y + 11;
+        g.fill(x, y, x + largura, y + 11, ligado ? 0xFF2E7D4F : 0xFF3A3F48);
+        g.renderOutline(x, y, largura, 11, sobre ? 0xFFB0B8C4 : 0xFF0A0C0F);
+        int bola = ligado ? x + largura - 10 : x + 1;
+        g.fill(bola, y + 1, bola + 9, y + 10, editavel ? 0xFFF2F4F7 : 0xFF9099A6);
+        g.drawString(font, t(ligado ? "interruptor_sim" : "interruptor_nao"), x + largura + 6, y + 2, ligado ? VERDE : CINZA, false);
+        if (editavel) {
+            l.zonas.put("interruptor", new int[]{x, y, x + largura + 60, y + 11});
         }
     }
 
@@ -669,23 +1032,30 @@ public class TelaHL extends Screen {
 
     private void desenharGrafico(GuiGraphics g, int y) {
         DadosPainel.Desempenho p = dados.desempenho;
-        int gx = cx + 26;
-        int gw = Math.min(cw - 34, 300);
+        int gx = cx + 24;
+        int gw = Math.min(cw - 30, 320);
         int gh = 56;
-        int base = y + gh + 2;
+        int topo = y + 3;
+        int base = topo + gh;
         float escala = 100;
         for (float v : p.historico) {
             escala = Math.max(escala, v);
         }
         escala = (float) (Math.ceil(escala / 50) * 50);
-        g.fill(gx, y + 2, gx + gw, base, 0xFF1A1A1A);
+        g.fill(gx - 1, topo - 1, gx + gw + 1, base + 1, 0xFF0A0C0F);
+        g.fill(gx, topo, gx + gw, base, 0xFF171A20);
+        // linhas de grade a cada 25% e a de 50 ms tracejada
+        for (int i = 1; i < 4; i++) {
+            int gy = base - gh * i / 4;
+            g.fill(gx, gy, gx + gw, gy + 1, 0xFF1F232A);
+        }
         int y50 = base - (int) (gh * 50 / escala);
         for (int x = gx; x < gx + gw; x += 4) {
-            g.fill(x, y50, x + 2, y50 + 1, 0xFF886622);
+            g.fill(x, y50, x + 2, y50 + 1, 0xFF8A6A2A);
         }
-        g.drawString(font, Integer.toString(Math.round(escala)), cx, y + 2, CINZA, false);
+        g.drawString(font, Integer.toString(Math.round(escala)), cx, topo, CINZA_ESCURO, false);
         g.drawString(font, "50", cx, y50 - 4, CINZA, false);
-        g.drawString(font, "0", cx, base - 8, CINZA, false);
+        g.drawString(font, "0", cx, base - 8, CINZA_ESCURO, false);
         int n = p.historico.length;
         // Uma coluna por segundo, alinhado a direita (o mais recente no fim).
         float largura = (float) gw / Desempenho5min.SEGUNDOS;
@@ -694,10 +1064,11 @@ public class TelaHL extends Screen {
             int x1 = gx + gw - (int) ((n - i) * largura);
             int x2 = Math.max(x1 + 1, gx + gw - (int) ((n - i - 1) * largura));
             int altura = Math.max(1, (int) (gh * Math.min(v, escala) / escala));
-            int cor = p.salvou[i] ? 0xFF5599FF : 0xFF000000 | corMspt(v);
-            g.fill(x1, base - altura, x2, base, cor);
+            int cor = p.salvou[i] ? 0x5599FF : corMspt(v);
+            g.fill(x1, base - altura, x2, base, 0xFF000000 | escurecer(cor));
+            g.fill(x1, base - altura, x2, base - altura + 1, 0xFF000000 | cor);
         }
-        g.drawString(font, t("legenda_grafico"), gx, base + 1, CINZA_ESCURO, false);
+        g.drawString(font, t("legenda_grafico"), gx, base + 4, CINZA_ESCURO, false);
     }
 
     /** Constantes do grafico (o servidor manda ate 300 s). */
@@ -712,11 +1083,13 @@ public class TelaHL extends Screen {
         int y = y0 + 10;
         g.pose().pushPose();
         g.pose().translate(0, 0, 400);
-        g.fill(x, y, x + mxw, y + mxh, 0xF0000000);
-        g.renderOutline(x, y, mxw, mxh, 0xFFFFAA00);
-        g.drawString(font, tituloModal, x + 6, y + 5, OURO);
-        int areaY = y + 18;
-        int areaH = mxh - 34;
+        g.fill(x0, y0, x0 + w, y0 + h, 0x90000000);
+        g.fill(x, y, x + mxw, y + mxh, 0xF80E1014);
+        g.fill(x, y, x + mxw, y + 16, FUNDO_BARRA);
+        g.renderOutline(x, y, mxw, mxh, BORDA_OURO);
+        g.drawString(font, tituloModal, x + 6, y + 4, OURO, false);
+        int areaY = y + 20;
+        int areaH = mxh - 38;
         g.enableScissor(x + 4, areaY, x + mxw - 4, areaY + areaH);
         int ly = areaY - (int) rolagemModal;
         for (FormattedCharSequence linha : linhasModal) {
@@ -726,18 +1099,39 @@ public class TelaHL extends Screen {
             ly += 10;
         }
         g.disableScissor();
-        String copiar = "[" + t("copiar") + "]";
-        String fechar = "[" + t("fechar") + "]";
-        int by = y + mxh - 13;
-        int fx = x + mxw - 6 - font.width(fechar);
-        int cxp = fx - 10 - font.width(copiar);
-        g.drawString(font, copiar, cxp, by, sobre(mx, my, cxp, by, font.width(copiar)) ? AMARELO : 0x55FFFF, false);
-        g.drawString(font, fechar, fx, by, sobre(mx, my, fx, by, font.width(fechar)) ? AMARELO : 0x55FFFF, false);
+        int[] zonaCopiar = zonaModal(true);
+        int[] zonaFechar = zonaModal(false);
+        botaoModal(g, t("copiar"), zonaCopiar, mx, my);
+        botaoModal(g, t("fechar"), zonaFechar, mx, my);
         g.pose().popPose();
     }
 
-    private static boolean sobre(int mx, int my, int x, int y, int largura) {
-        return mx >= x && mx < x + largura && my >= y - 1 && my < y + 10;
+    private void botaoModal(GuiGraphics g, String texto, int[] r, int mx, int my) {
+        boolean sobre = mx >= r[0] && mx < r[2] && my >= r[1] && my < r[3];
+        g.fill(r[0], r[1], r[2], r[3], sobre ? 0xFF353E4C : 0xFF20262F);
+        g.renderOutline(r[0], r[1], r[2] - r[0], r[3] - r[1], sobre ? 0xFF7A8597 : 0xFF3D4552);
+        g.drawString(font, texto, r[0] + 5, r[1] + 2, sobre ? AMARELO : BRANCO, false);
+    }
+
+    /** Retangulo dos botoes Copiar (true) e Fechar (false) da janela de texto. */
+    private int[] zonaModal(boolean copiar) {
+        int x = x0 + 10;
+        int y = y0 + 10;
+        int mxw = w - 20;
+        int mxh = h - 20;
+        int by = y + mxh - 15;
+        int larguraFechar = font.width(t("fechar")) + 10;
+        int fx = x + mxw - 6 - larguraFechar;
+        if (!copiar) {
+            return new int[]{fx, by, fx + larguraFechar, by + 12};
+        }
+        int larguraCopiar = font.width(t("copiar")) + 10;
+        int cxp = fx - 6 - larguraCopiar;
+        return new int[]{cxp, by, cxp + larguraCopiar, by + 12};
+    }
+
+    private static boolean dentro(int[] r, int mx, int my) {
+        return r != null && mx >= r[0] && mx < r[2] && my >= r[1] && my < r[3];
     }
 
     // ---------- entrada ----------
@@ -747,37 +1141,63 @@ public class TelaHL extends Screen {
         int mx = (int) mxd;
         int my = (int) myd;
         if (tituloModal != null) {
-            int mxw = w - 20;
-            int mxh = h - 20;
-            int x = x0 + 10;
-            int y = y0 + 10;
-            String copiar = "[" + t("copiar") + "]";
-            String fechar = "[" + t("fechar") + "]";
-            int by = y + mxh - 13;
-            int fx = x + mxw - 6 - font.width(fechar);
-            int cxp = fx - 10 - font.width(copiar);
-            if (sobre(mx, my, cxp, by, font.width(copiar))) {
+            if (dentro(zonaModal(true), mx, my)) {
                 minecraft.keyboardHandler.setClipboard(textoModal);
                 mensagem(true, t("copiado"));
-            } else if (sobre(mx, my, fx, by, font.width(fechar))) {
+            } else if (dentro(zonaModal(false), mx, my)) {
                 tituloModal = null;
             }
             return true;
         }
-        if (super.mouseClicked(mxd, myd, botao)) {
+        // fechar e abas
+        if (mx >= x0 + w - 16 && mx < x0 + w - 4 && my >= y0 + 3 && my < y0 + 15) {
+            onClose();
             return true;
         }
-        if (mx < cx || mx >= cx + cw || my < cy || my >= cy + ch) {
+        for (Object[] item : abas) {
+            if (dentro((int[]) item[1], mx, my)) {
+                trocarAba((Aba) item[0]);
+                return true;
+            }
+        }
+        // rodape
+        for (Map.Entry<String, int[]> e : zonasRodape.entrySet()) {
+            int[] r = e.getValue();
+            if (r[4] == 1 && dentro(r, mx, my)) {
+                if (e.getKey().equals("salvar")) {
+                    salvarConfig();
+                } else {
+                    desfazerTudo();
+                }
+                return true;
+            }
+        }
+        // barra de rolagem
+        if (alturaConteudo > ch && mx >= x0 + w - 9 && mx < x0 + w - 2 && my >= cy && my < cy + ch) {
+            arrastandoBarra = true;
+            int[] r = barraRolagem();
+            if (my < r[0] || my >= r[1]) {
+                rolarPara(my);
+            }
+            return true;
+        }
+        if (super.mouseClicked(mxd, myd, botao)) { // caixas de texto
+            return true;
+        }
+        setFocused(null);
+        if (mx < cx - 2 || mx >= cx + cw || my < cy || my >= cy + ch) {
             return false;
         }
         for (Linha l : linhas) {
             if (my < l.yTela || my >= l.yTela + l.altura) {
                 continue;
             }
+            if (l.controle != null && cliqueControle(l, mx, my)) {
+                return true;
+            }
             for (int i = 0; i < l.retangulosAcoes.size() && i < l.acoes.size(); i++) {
-                int[] r = l.retangulosAcoes.get(i);
                 Acao a = l.acoes.get(i);
-                if (a.ativa() && mx >= r[0] && mx < r[2] && my >= r[1] && my < r[3]) {
+                if (a.ativa() && dentro(l.retangulosAcoes.get(i), mx, my)) {
                     executar(a);
                     return true;
                 }
@@ -788,6 +1208,71 @@ public class TelaHL extends Screen {
             }
         }
         return false;
+    }
+
+    private boolean cliqueControle(Linha l, int mx, int my) {
+        ControleConfig c = l.controle;
+        if (dentro(l.zonas.get("desfazer"), mx, my)) {
+            desfazer(c);
+            return true;
+        }
+        if (dentro(l.zonas.get("auto"), mx, my)) {
+            c.alternarAuto();
+            return true;
+        }
+        if (dentro(l.zonas.get("menos"), mx, my)) {
+            c.passo(-1);
+            return true;
+        }
+        if (dentro(l.zonas.get("mais"), mx, my)) {
+            c.passo(1);
+            return true;
+        }
+        if (dentro(l.zonas.get("interruptor"), mx, my)) {
+            c.valor = c.valor.trim().equals("true") ? "false" : "true";
+            return true;
+        }
+        int[] trilho = l.zonas.get("trilho");
+        if (dentro(trilho, mx, my)) {
+            arrastando = c;
+            trilhoArrastado = new int[]{trilho[0] + 3, trilho[2] - 3};
+            arrastar(mx);
+            return true;
+        }
+        return false;
+    }
+
+    private void arrastar(int mx) {
+        float f = (float) (mx - trilhoArrastado[0]) / Math.max(1, trilhoArrastado[1] - trilhoArrastado[0]);
+        arrastando.definirNumero(arrastando.valorDe(f));
+    }
+
+    private void rolarPara(int my) {
+        float f = (float) (my - cy) / ch;
+        rolagem = Math.max(0, Math.min(alturaConteudo - ch, f * alturaConteudo - ch / 2.0));
+    }
+
+    @Override
+    public boolean mouseDragged(double mx, double my, int botao, double dx, double dy) {
+        if (arrastando != null) {
+            arrastar((int) mx);
+            return true;
+        }
+        if (arrastandoBarra) {
+            int[] r = barraRolagem();
+            int altura = r[1] - r[0];
+            double f = (my - cy - altura / 2.0) / Math.max(1, ch - altura);
+            rolagem = Math.max(0, Math.min(alturaConteudo - ch, f * (alturaConteudo - ch)));
+            return true;
+        }
+        return super.mouseDragged(mx, my, botao, dx, dy);
+    }
+
+    @Override
+    public boolean mouseReleased(double mx, double my, int botao) {
+        arrastando = null;
+        arrastandoBarra = false;
+        return super.mouseReleased(mx, my, botao);
     }
 
     private void executar(Acao a) {
@@ -806,11 +1291,11 @@ public class TelaHL extends Screen {
     @Override
     public boolean mouseScrolled(double mx, double my, double delta) {
         if (tituloModal != null) {
-            int max = Math.max(0, linhasModal.size() * 10 - (h - 54));
+            int max = Math.max(0, linhasModal.size() * 10 - (h - 58));
             rolagemModal = Math.max(0, Math.min(max, rolagemModal - delta * 20));
             return true;
         }
-        rolagem = Math.max(0, Math.min(Math.max(0, alturaConteudo - ch), rolagem - delta * 22));
+        rolagem = Math.max(0, Math.min(Math.max(0, alturaConteudo - ch), rolagem - delta * 24));
         return true;
     }
 
@@ -820,17 +1305,10 @@ public class TelaHL extends Screen {
             tituloModal = null;
             return true;
         }
-        if (ClienteTecla.ehAbrir(tecla, scan) && getFocused() == null) {
+        if (com.hlotimizacao.cliente.ClienteHL.ABRIR.matches(tecla, scan) && !(getFocused() instanceof EditBox)) {
             onClose();
             return true;
         }
         return super.keyPressed(tecla, scan, mods);
-    }
-
-    /** F8 de novo fecha a tela (quando nenhum campo de texto esta em foco). */
-    private static final class ClienteTecla {
-        static boolean ehAbrir(int tecla, int scan) {
-            return com.hlotimizacao.cliente.ClienteHL.ABRIR.matches(tecla, scan);
-        }
     }
 }

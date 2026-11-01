@@ -412,4 +412,8 @@ TR = {
     "# HLO: HL Otimizacao\n": "# HLO: HL Optimization\n",
     "{} travamento registrado": "{} stall recorded",
     "{} aviso na inicialização": "{} warning at startup",
+    "{} precisa estar entre {} e {}": "{} must be between {} and {}",
+    "{}: \"{}\" precisa ser tipo=numero": "{}: \"{}\" must be type=number",
+    "{}: {} precisa estar entre {} e {}": "{}: {} must be between {} and {}",
+    "{}: \"{}\" nao e um numero": "{}: \"{}\" is not a number",
 }

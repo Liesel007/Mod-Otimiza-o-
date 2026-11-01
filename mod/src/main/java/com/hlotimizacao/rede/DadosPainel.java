@@ -11,6 +11,12 @@ import java.util.List;
  * pacote ficar pequeno.
  */
 public final class DadosPainel {
+    /**
+     * Formato dos pacotes. Vai antes de tudo: quem le um protocolo diferente nao tenta decodificar o resto
+     * (servidor e cliente com versoes diferentes do HLO), e a tela avisa em vez de mostrar lixo.
+     * Aumente sempre que mudar escrever/ler.
+     */
+    public static final int PROTOCOLO = 3;
     public static final int TEXTO_CURTO = 120;
     public static final int TEXTO_LONGO = 600;
 
@@ -21,6 +27,8 @@ public final class DadosPainel {
     // ---- visao geral (sempre) ----
     public Aba aba = Aba.GERAL;
     public String versao = "?";
+    /** Protocolo de quem mandou; diferente de PROTOCOLO = o resto nao foi lido. */
+    public int protocolo = PROTOCOLO;
     public boolean operador;
     public boolean dedicado;
     public float tps;
@@ -112,7 +120,11 @@ public final class DadosPainel {
     public record Aviso(String curto, String detalhe) {
     }
 
-    public record ItemConfig(String chave, String valor, String descricao) {
+    /**
+     * Uma chave da aba Config. tipo = ordinal de Config.TipoChave; min/max: faixa aceita pelo servidor;
+     * emUso: valor que o servidor esta usando (o do preset quando o valor e "auto").
+     */
+    public record ItemConfig(String chave, String valor, String descricao, int tipo, int min, int max, boolean aceitaAuto, int emUso) {
     }
 
     // ---------- serializacao ----------
@@ -129,8 +141,9 @@ public final class DadosPainel {
     }
 
     public void escrever(FriendlyByteBuf buf) {
-        buf.writeEnum(aba);
+        buf.writeVarInt(PROTOCOLO);
         texto(buf, versao, 32);
+        buf.writeEnum(aba);
         buf.writeBoolean(operador);
         buf.writeBoolean(dedicado);
         buf.writeFloat(tps);
@@ -247,15 +260,25 @@ public final class DadosPainel {
             for (ItemConfig c : config) {
                 texto(buf, c.chave(), 60);
                 texto(buf, c.valor(), 400);
-                texto(buf, c.descricao(), 120);
+                texto(buf, c.descricao(), 160);
+                buf.writeVarInt(c.tipo());
+                buf.writeVarInt(c.min());
+                buf.writeVarInt(c.max());
+                buf.writeBoolean(c.aceitaAuto());
+                buf.writeVarInt(c.emUso() + 1);
             }
         }
     }
 
     public static DadosPainel ler(FriendlyByteBuf buf) {
         DadosPainel d = new DadosPainel();
+        d.protocolo = buf.readVarInt();
+        d.versao = buf.readUtf(64);
+        if (d.protocolo != PROTOCOLO) {
+            buf.skipBytes(buf.readableBytes());
+            return d;
+        }
         d.aba = buf.readEnum(Aba.class);
-        d.versao = buf.readUtf();
         d.operador = buf.readBoolean();
         d.dedicado = buf.readBoolean();
         d.tps = buf.readFloat();
@@ -355,7 +378,8 @@ public final class DadosPainel {
             int n = buf.readVarInt();
             d.config = new ArrayList<>(n);
             for (int i = 0; i < n; i++) {
-                d.config.add(new ItemConfig(buf.readUtf(), buf.readUtf(), buf.readUtf()));
+                d.config.add(new ItemConfig(buf.readUtf(), buf.readUtf(), buf.readUtf(), buf.readVarInt(), buf.readVarInt(), buf.readVarInt(),
+                        buf.readBoolean(), buf.readVarInt() - 1));
             }
         }
         return d;

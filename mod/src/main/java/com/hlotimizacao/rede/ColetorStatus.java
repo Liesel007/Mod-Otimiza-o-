@@ -91,7 +91,9 @@ public final class ColetorStatus {
             case CONFIG -> {
                 d.config = new ArrayList<>();
                 for (Map.Entry<String, String> e : Config.EDITAVEIS.entrySet()) {
-                    d.config.add(new DadosPainel.ItemConfig(e.getKey(), Config.valorTexto(e.getKey()), com.hlotimizacao.config.Msg.t(e.getValue())));
+                    Config.Espec espec = Config.espec(e.getKey());
+                    d.config.add(new DadosPainel.ItemConfig(e.getKey(), Config.valorTexto(e.getKey()), Msg.t(e.getValue()),
+                            espec.tipo().ordinal(), espec.min(), espec.max(), espec.aceitaAuto(), Config.valorEmUso(e.getKey())));
                 }
             }
             default -> {

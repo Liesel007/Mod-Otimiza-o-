@@ -48,6 +48,14 @@ public final class ClienteHL {
 
     public static void receberDados(DadosPainel dados, boolean abrir) {
         Minecraft mc = Minecraft.getInstance();
+        if (dados.protocolo != DadosPainel.PROTOCOLO) {
+            if (abrir && mc.player != null) {
+                String local = net.minecraftforge.fml.ModList.get().getModContainerById("hlotimizacao")
+                        .map(c -> c.getModInfo().getVersion().toString()).orElse("?");
+                mc.player.displayClientMessage(Component.translatable("hlotimizacao.tela.versao_diferente", dados.versao, local), false);
+            }
+            return;
+        }
         if (mc.screen instanceof TelaHL tela) {
             tela.atualizar(dados);
         } else if (abrir) {

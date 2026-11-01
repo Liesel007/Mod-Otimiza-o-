@@ -827,7 +827,15 @@ final class MensagensEn {
             Map.entry("{} travamento registrado",
                     "{} stall recorded"),
             Map.entry("{} aviso na inicialização",
-                    "{} warning at startup"));
+                    "{} warning at startup"),
+            Map.entry("{} precisa estar entre {} e {}",
+                    "{} must be between {} and {}"),
+            Map.entry("{}: \"{}\" precisa ser tipo=numero",
+                    "{}: \"{}\" must be type=number"),
+            Map.entry("{}: {} precisa estar entre {} e {}",
+                    "{}: {} must be between {} and {}"),
+            Map.entry("{}: \"{}\" nao e um numero",
+                    "{}: \"{}\" is not a number"));
 
     private MensagensEn() {
     }

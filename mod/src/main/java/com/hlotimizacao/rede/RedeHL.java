@@ -38,16 +38,16 @@ import java.util.function.Supplier;
  * cliente e so aparencia.
  */
 public final class RedeHL {
-    private static final String VERSAO = "2";
     /**
-     * O formato dos pacotes mudou na 0.3.0 (preset e custo do HLO). Canal com outro nome, e nao so outra versao:
-     * com o mesmo nome e versao diferente o Forge recusaria a conexao (cliente 0.2.x num servidor 0.3.0). Com outro
-     * nome, cada lado ve o canal do outro como ausente, entra normalmente e o F8 avisa que o servidor nao tem o painel.
+     * Canal da tela. Aceita qualquer versao (e a falta do canal): o Forge nunca recusa a conexao por causa do HLO.
+     * A compatibilidade e conferida pelo DadosPainel.PROTOCOLO, que vai no comeco de cada pacote de dados: com
+     * protocolos diferentes a tela avisa "atualize o HLO" em vez de decodificar. Regras para manter isso valendo:
+     * mensagens novas so no fim de registrar() (os ids nao mudam), e as mensagens do cliente para o servidor nao mudam
+     * de formato. (0.2.x usava o canal "painel" e a 0.3.0 o "painel2"; para elas, este canal simplesmente nao existe.)
      */
     public static final SimpleChannel CANAL = NetworkRegistry.newSimpleChannel(
-            new ResourceLocation(HLOtimizacao.MOD_ID, "painel2"), () -> VERSAO,
-            // Cliente ou servidor sem o mod continuam aceitos: o /hl cai no texto do chat.
-            NetworkRegistry.acceptMissingOr(VERSAO), NetworkRegistry.acceptMissingOr(VERSAO));
+            new ResourceLocation(HLOtimizacao.MOD_ID, "tela"), () -> Integer.toString(DadosPainel.PROTOCOLO),
+            versao -> true, versao -> true);
 
     private static final long INTERVALO_MS = 1000;
     private static final long SEM_SINAL_MS = 5000;
