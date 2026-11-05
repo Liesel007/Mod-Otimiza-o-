@@ -113,6 +113,25 @@ public final class Estatisticas {
         if (Config.ativo(Modulo.DIAGNOSTICO_LAG)) {
             linhas.add(String.format(Msg.t("diagnostico_lag: %d travamento(s) registrado(s)"), LAG_REGISTROS.get()));
         }
+        if (Config.ativo(Modulo.RENDER_ENXAME) && ContadoresCliente.enxameExistentes > 0) {
+            linhas.add(String.format(Msg.t("render_enxame: %d de %d mobs desenhados no ultimo frame"), ContadoresCliente.enxameDesenhadas,
+                    ContadoresCliente.enxameExistentes));
+        }
+        if (Config.ativo(Modulo.DISTANCIA_BLOCK_ENTITIES) && ContadoresCliente.blockEntitiesPulados > 0) {
+            linhas.add(String.format(Msg.t("distancia_block_entities: %d desenho(s) de block entity pulados"), ContadoresCliente.blockEntitiesPulados));
+        }
+        // Ligados sem contador proprio: aparecem para ficar claro que estavam ativos.
+        List<String> semContador = new ArrayList<>();
+        for (Modulo m : List.of(Modulo.GATILHO_INVENTARIO, Modulo.FPS_SEM_FOCO, Modulo.TOASTS_VAZIOS, Modulo.DIAGNOSTICO_INSERCAO,
+                Modulo.RELATORIO_CONFLITOS, Modulo.CORRECAO_FASTASYNCWORLDSAVE, Modulo.DIAGNOSTICO_FPS)) {
+            boolean dedicado = net.minecraftforge.fml.loading.FMLEnvironment.dist == net.minecraftforge.api.distmarker.Dist.DEDICATED_SERVER;
+            if (Config.ativo(m) && !(dedicado && m.soCliente)) { // no servidor dedicado os de cliente nao fazem nada
+                semContador.add(m.chave);
+            }
+        }
+        if (!semContador.isEmpty()) {
+            linhas.add(Msg.f("tambem ligados (sem contador): {}", String.join(", ", semContador)));
+        }
         return linhas;
     }
 

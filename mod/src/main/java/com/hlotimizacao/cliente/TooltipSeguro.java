@@ -49,11 +49,88 @@ public final class TooltipSeguro {
         if (limpar(event.getToolTip())) {
             avisar(event.getItemStack(), Msg.f("o proprio item (mod {})", modDoItem(event.getItemStack())));
         }
+        vigiarLinhas(event);
     }
 
     private static void linhasDeOutrosMods(ItemTooltipEvent event) {
-        if (limpar(event.getToolTip())) {
-            avisar(event.getItemStack(), Msg.t("outro mod, por um ouvinte do ItemTooltipEvent"));
+        List<Component> linhas = event.getToolTip();
+        String culpado = linhas instanceof ListaVigiada vigiada ? vigiada.culpado : null;
+        if (limpar(linhas)) {
+            avisar(event.getItemStack(), culpado != null ? Msg.f("o mod {}, por um ouvinte do ItemTooltipEvent", culpado)
+                    : Msg.t("outro mod, por um ouvinte do ItemTooltipEvent"));
+        }
+    }
+
+    // ---------- quem adicionou a linha nula ----------
+
+    private static java.lang.reflect.Field campoLinhas;
+    private static boolean campoProcurado;
+
+    /**
+     * O Forge nao diz qual ouvinte adicionou cada linha. Aqui a lista do evento e trocada por uma que repassa tudo para
+     * a original (o ItemStack devolve a original, entao nada se perde) e, so quando alguem adiciona uma linha
+     * invalida, olha na pilha qual mod chamou. Linhas validas custam so a chamada repassada.
+     */
+    private static void vigiarLinhas(ItemTooltipEvent event) {
+        try {
+            if (!campoProcurado) {
+                campoProcurado = true;
+                campoLinhas = ItemTooltipEvent.class.getDeclaredField("toolTip");
+                campoLinhas.setAccessible(true);
+            }
+            if (campoLinhas != null && !(event.getToolTip() instanceof ListaVigiada)) {
+                campoLinhas.set(event, new ListaVigiada(event.getToolTip()));
+            }
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            campoLinhas = null; // sem a troca, a mensagem so diz "outro mod"
+        }
+    }
+
+    private static final StackWalker PILHA = StackWalker.getInstance(StackWalker.Option.RETAIN_CLASS_REFERENCE);
+
+    private static final class ListaVigiada extends java.util.AbstractList<Component> implements java.util.RandomAccess {
+        private final List<Component> original;
+        volatile String culpado;
+
+        ListaVigiada(List<Component> original) {
+            this.original = original;
+        }
+
+        private void conferir(Component c) {
+            if (culpado == null && invalido(c)) {
+                culpado = PILHA.walk(frames -> frames
+                        .map(f -> com.hlotimizacao.recursos.DiagnosticoLag.modDoModulo(f.getDeclaringClass().getModule().getName()))
+                        .filter(java.util.Objects::nonNull)
+                        .filter(m -> !m.equals("hlotimizacao"))
+                        .findFirst().orElse(null));
+            }
+        }
+
+        @Override
+        public Component get(int i) {
+            return original.get(i);
+        }
+
+        @Override
+        public int size() {
+            return original.size();
+        }
+
+        @Override
+        public Component set(int i, Component c) {
+            conferir(c);
+            return original.set(i, c);
+        }
+
+        @Override
+        public void add(int i, Component c) {
+            conferir(c);
+            original.add(i, c);
+        }
+
+        @Override
+        public Component remove(int i) {
+            return original.remove(i);
         }
     }
 

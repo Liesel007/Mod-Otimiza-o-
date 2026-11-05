@@ -3,6 +3,34 @@
 HLO: HL Optimization, for Forge 1.20.1. The detailed notes (in Portuguese, with test results) are in
 [`mod/README.md`](mod/README.md#histórico-de-versões).
 
+## 0.4.0
+
+Stutter-focused release.
+
+- **New `monitor_gc`** (both sides): logs GC pauses with collector, cause and heap, and detects whole-process
+  freezes with no GC (OS swap, antivirus, power saving). Suggests JVM arguments (`-XX:+DisableExplicitGC`, G1 flags
+  for large packs, `-Xmx` too large with integrated graphics) in the warnings tab, as text only.
+- **New `diagnostico_fps`** (client): frame spikes with their likely mod and game phase, sampled only during slow
+  frames (hooks cost ~6 us per frame). New **FPS tab**: average FPS, 1% and 0.1% lows, spikes per minute, frame time
+  graph, top causes, last spikes with stacks, and a "what can be adjusted" list.
+- **New `render_enxame`** (client): with many mobs of one type loaded, draws only the nearest 24 and none beyond
+  24 blocks. Automatic only for non-hostile mobs; never hides bosses, named, tamed, targeted or fighting mobs.
+- **New `distancia_block_entities`** (client): block entity renderers are skipped beyond 32 blocks (beacons, end
+  gateways, conduits, chests and signs keep their vanilla distance).
+- **New `salvamento_gradual`** (server): the autosave spreads chunk serialization over several ticks within a
+  per-tick budget. Closing the world, `/save-all` and `/save-all flush` stay complete. Test: autosave tick 737 -> 54 ms.
+- `limite_enxame` now also blocks mobs created without the spawn event (`EntityType.create` + `addFreshEntity`, like
+  Chaos Persists ant hills). Babies, named, persistent and mounted mobs are never blocked. Counters per type
+  include zeros. New `/hl enxame reduzir <type> [confirmar]`.
+- Stalls without samples now name the JVM pause that caused them; the same tick is no longer reported twice.
+- `tooltip_seguro` names the mod whose `ItemTooltipEvent` listener added the null line.
+- JEI start time and failed JEI plugins are read from the log, with a suggestion when JEI takes over 20 s.
+- Time on the main thread per class with its own `save(File)`, in the summary and the panel.
+- Log format: existing prefixes and the `Slow tick:`, `Server stalled for`, `Likely cause:` and
+  `Summary since the game started:` lines are unchanged. `Likely cause:` can now say `whole JVM stopped N ms by
+  garbage collection (...)`; new optional line `JVM pause in the same interval:`; new prefixes `[monitor_gc]` and
+  `[diagnostico_fps]`.
+
 ## 0.3.1
 
 - **Panel redesign**: custom-drawn tabs, pill buttons, bars, section headers, striped lists, a draggable scrollbar and

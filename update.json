@@ -1,10 +1,11 @@
 {
   "homepage": "https://github.com/Liesel007/Mod-Otimiza-o-",
   "promos": {
-    "1.20.1-latest": "0.3.1",
-    "1.20.1-recommended": "0.3.1"
+    "1.20.1-latest": "0.4.0",
+    "1.20.1-recommended": "0.4.0"
   },
   "1.20.1": {
+    "0.4.0": "Stutter diagnostics (GC pauses, process freezes, frame spikes with their cause, FPS tab), swarm rendering limit, block entity render distance, gradual autosave, swarm limit for mobs created without the spawn event.",
     "0.3.1": "Polished panel; config values are edited with sliders and switches limited to valid ranges, lists are checked before saving.",
     "0.3.0": "Presets by mod count, English by default (pt_br supported), safe mode (a module that throws 3 times turns itself off until restart), HLO cost in ms/tick, works with clients that do not have the mod.",
     "0.2.2": "Fast insertion into large inventories (optional), Re-Avaritia Infinity Chest shortcut, insertion diagnostics.",

@@ -24,6 +24,11 @@ sozinho quando já existe um mod que faz o mesmo, então dá para colocar o HLO 
 | Toasts vazios | Pula a camada de notificações quando não há nenhuma | BadOptimizations | cliente |
 | Tooltip seguro | Troca linhas nulas de tooltip (um crash comum) por linhas vazias e diz no log qual item causou | — | cliente |
 | Diagnóstico de lag | Quando um tick demora demais, registra onde o servidor travou, a causa provável e o estado de cada dimensão | — | servidor |
+| Monitor de GC | Registra as pausas da JVM inteira (coleta de lixo e congelamentos pelo sistema) e sugere argumentos da JVM | — | os dois |
+| Diagnóstico de FPS | Acha o mod e a fase do jogo por trás dos picos de frame (travadinhas), com uma aba FPS | — | cliente |
+| Render de enxames | Desenha só os mobs mais próximos de um tipo lotado (só não hostis por padrão) | Out Of Sight, RenderLimiter | cliente |
+| Distância de block entities | Para de desenhar máquinas e blocos animados longe (baús, placas e beacons ficam como no vanilla) | Out Of Sight | cliente |
+| Salvamento gradual | Espalha o autosave por vários ticks para ele não travar o jogo | — | servidor |
 | Relatório de conflitos | Avisa na inicialização sobre conflitos conhecidos e versões erradas de mods | — | os dois |
 | Correções | Chaves do Infinity Chest do Re-Avaritia que crescem sem parar e perda de dados ao fechar com o Fast Async World Save (só ligam com esses mods) | — | — |
 
@@ -65,6 +70,8 @@ depende de quanto cada situação acontece no seu jogo. Método completo
 | 20.500 vacas | 590 ms / 1,7 | 88 ms / 11,3 |
 | Inventário de 5.000 slots e Infinity Chest de 5.000 entradas, 4 máquinas em cada despejando 20 pilhas/tick\* | 287 ms (3,5 TPS) | 20 ms (20 TPS) |
 | Mesmo cenário, rajada de 400 pilhas/tick\* | servidor derrubado (tick de 60 s) | 18 ms (20 TPS) |
+| Tick do autosave com 529 chunks alterados (salvamento gradual) | 737 ms | 54 ms |
+| 300 vacas à vista, tempo de frame (render de enxames, render por software) | 403 ms | 287 ms |
 | CPU do cliente no menu com a janela sem foco | 193% | 67% |
 
 \* com `insercao_rapida` e `insercao_rapida.orcamento=true` (o orçamento recusa varreduras completas a mais no tick e a

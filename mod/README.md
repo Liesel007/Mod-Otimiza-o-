@@ -9,7 +9,7 @@ Nome exibido: **HLO: HL Optimization** (o modId continua `hlotimizacao`, para n�
 Licença: [MIT](../LICENSE). Página do projeto (textos para o CurseForge): [`docs/curseforge/`](../docs/curseforge/).
 Mudanças por versão em inglês: [`CHANGELOG.md`](../CHANGELOG.md).
 
-**Jar pronto:** [`releases/hlotimizacao-0.3.1.jar`](../releases/hlotimizacao-0.3.1.jar). Basta colocá-lo
+**Jar pronto:** [`releases/hlotimizacao-0.4.0.jar`](../releases/hlotimizacao-0.4.0.jar). Basta colocá-lo
 na pasta `mods` da instância.
 
 ## Como ele convive com os mods do pack
@@ -103,6 +103,11 @@ o F8 avisa que o servidor não tem o HLO (ou tem outra versão) e o `/hl` em tex
 | `insercao_rapida` | (opcional, **ligado só no preset agressivo**) | — | servidor |
 | `tooltip_seguro` | (correção) | — | cliente |
 | `diagnostico_lag` | (diagnóstico) | — | servidor |
+| `monitor_gc` | jHiccup (ideia) | — | os dois |
+| `diagnostico_fps` | (diagnóstico) | — | cliente |
+| `render_enxame` | (próprio) | Out Of Sight, RenderLimiter (modIds `outofsight`, `renderlimiter`: não confirmados) | cliente |
+| `distancia_block_entities` | (próprio) | Out Of Sight, Enhanced Block Entities (modIds não confirmados) | cliente |
+| `salvamento_gradual` | Paper (`max-auto-save-chunks-per-tick`) | — | servidor |
 
 ## Erros dos outros mods que este mod corrige
 
@@ -229,6 +234,83 @@ Teste de antes e depois com números: [`docs/benchmark.md`](../docs/benchmark.md
   e o funcionamento junto com o pack HL completo. Teste num mundo de cópia antes de usar no mundo principal.
 
 ## Histórico de versões
+
+### 0.4.0
+Feita a partir do relatório da sessão de 05/11/2026 (HLO 0.3.1, 413 mods, Intel UHD integrada), focada em
+**stuttering**. Os módulos que mudam o que se vê (`render_enxame`, `distancia_block_entities`) ficam desligados no
+preset leve; nada muda argumentos da JVM, `options.txt` ou configs de outros mods (só sugestões no painel).
+
+**Correções**
+- **`limite_enxame` não segurava as formigas do Chaos Persists.** O formigueiro cria formigas com
+  `EntityType.create` + `addFreshEntity` no `randomTick` do bloco, sem passar pelo `MobSpawnEvent`. Agora o módulo
+  também olha o `EntityJoinLevelEvent` (só entidades novas, não as carregadas do disco). Quem passou pelo
+  `FinalizeSpawn` (natural, spawner, ovo, comando, balde) é marcado e não conta duas vezes. Na entrada **nunca** se
+  cancela cria, mob com nome, persistente, montaria ou passageiro: reprodução e conversões (aldeão curado) também
+  usam `addFreshEntity`. Teste: 40 tentativas no estilo do formigueiro com `cow=8` → 8 entram, 32 bloqueadas; cria,
+  ovo e vaca com nome passam. O resumo e o painel mostram todos os tipos da lista, inclusive com 0.
+  A `chaospersists:red_ant` **não** foi para a lista padrão: desde a 0.3.0 a lista vem vazia (mod genérico) e o pack
+  usa a própria; acrescente `chaospersists:red_ant=4` na `limite_enxame.lista` da config do pack.
+- **`/hl enxame reduzir <tipo>`** (operador): mostra quantos sairiam; com `confirmar` no fim remove o excesso que já
+  existe, sem drops, deixando o limite por região e poupando os com nome, persistentes, crias e montarias.
+  Teste: 41 vacas → 9.
+- **Travamentos "sem amostras"** agora dizem a causa: quando a vigia também ficou parada, foi a JVM inteira (coleta
+  de lixo ou o sistema congelando o processo), e a causa vem do `monitor_gc`. O mesmo tick não é mais registrado duas
+  vezes.
+- `tooltip_seguro`: diz **qual mod** adicionou a linha nula pelo `ItemTooltipEvent` (antes só "outro mod"). Teste: o
+  ouvinte do hlbench saiu como "the mod hlbench".
+- Aviso de `SavedData` com nome inválido (`goblintraders:...`) passou para debug (o vanilla grava esse caso normalmente).
+
+**Novos módulos**
+- **`monitor_gc`** (os dois lados): pausas de GC ≥ 100 ms com coletor, causa e heap antes/depois (as ≥ 500 ms vão para
+  o log), e **congelamentos do processo sem GC** (uma thread dorme 20 ms em loop e mede o atraso; 200 ms a mais sem
+  coleta = o sistema parou a JVM: troca de memória com o disco, antivírus, economia de energia). Avisos com sugestões
+  para copiar: `-XX:+DisableExplicitGC` quando algum mod chama `System.gc()`, os argumentos do G1 para packs grandes
+  (cada um explicado) depois de uma coleta completa, e `-Xmx` acima de 50% da RAM com placa de vídeo integrada.
+  Testes: coleta completa forçada de 843 ms registrada com tipo e causa, e o travamento do mesmo tick apontou essa
+  pausa; `kill -STOP` de 1,5 s no servidor detectado como processo congelado sem coleta (1.492 ms). A parada das
+  01:37:52 do relatório (15,8 s sem registro) é esse caso: a JVM parada entre dois ticks não aparece para a vigia do
+  `diagnostico_lag`, mas aparece para o `monitor_gc`.
+- **`diagnostico_fps`** (cliente): o `diagnostico_lag` do cliente. Ganchos no começo e no fim de `Minecraft.runTick`
+  (desconta o sono do limitador de FPS; ignora telas de carregamento e janela sem foco). Passando de 50 ms, uma vigia
+  amostra a thread de render a cada 5 ms (25 ms quando os picos são contínuos) e classifica pelo mod e pela fase:
+  entidades, block entities, chunks, partículas, GUI, tooltips, modelos/texturas, rede, tick do cliente, esperando a
+  placa de vídeo, pausa da JVM. No log só ≥ 250 ms, no máximo 1 a cada 30 s. **Aba FPS** na tela: FPS médio, 1% e
+  0,1% low, picos por minuto, gráfico do tempo de frame, principais causas, últimos picos com a pilha (`[ver]`) e
+  "o que pode ser ajustado". Resumo ao sair do mundo. Teste: um frame de 300 ms dentro do render do mundo saiu como
+  `hlbench (world render)` com a pilha certa; custo dos ganchos 5,8 µs por frame (o limite do relatório era 50 µs).
+- **`render_enxame`** (cliente): com mais de 24 mobs de um tipo carregados, desenha só os 24 mais próximos e nenhum
+  além de 24 blocos; entre 12 e 24 blocos, sem sombra. Automático **só para mobs não hostis** (um esqueleto invisível
+  atirando é perigoso); hostis só se listados em `render_enxame.lista`. Nunca esconde jogadores, chefes, com nome,
+  domesticados, montarias/passageiros, o que está na mira, brilhando ou machucado nos últimos 5 s. Teste com 300 vacas
+  à vista: **403 → 287 ms por frame** (render por software, a proporção é o que vale); a vaca com nome continuou visível.
+- **`distancia_block_entities`** (cliente): renderers de block entity (máquinas, mesas animadas) não são desenhados além
+  de 32 blocos. Ficam com a distância original: beacon, end gateway, conduit e também **baús e placas** (com 32 eles
+  sumiriam a 33 blocos, o que parece bug). Teste: mesa de encantamento a 4 blocos desenhada, a 50 pulada. A opção
+  `pular_animacao_longe` do relatório não foi feita (era experimental).
+- **`salvamento_gradual`** (servidor): o autosave (`saveEverything(true, false, false)`, conferido no bytecode) só põe os
+  chunks numa fila por dimensão; cada tick salva o que couber em `orcamento_ms` (10). Fechar o mundo, `/save-all`,
+  `/save-all flush` e o salvamento ao pausar continuam completos e imediatos. Teste com 529 chunks alterados: **tick do
+  autosave 737 → 54 ms**, maior tick esvaziando a fila 59 ms, e o mesmo número de chunks sem salvar que o vanilla 15 s
+  depois. Testado com uma dimensão; o salvamento das entidades continua no tick do autosave e cresce com o número de
+  dimensões.
+- Tempo no thread principal de cada classe com `save(File)` próprio (Immersive Petroleum, Mekanism, AE2...) no resumo e no
+  painel, para saber qual mod reportar.
+
+**Diagnóstico no cliente**
+- Tempo de abertura do JEI lido do log; acima de 20 s, aviso sugerindo `tooltipSearchMode = DISABLED` em
+  `config/jei/jei-client.ini`. Plugins do JEI que falharam viram aviso.
+- "O que pode ser ajustado" (aba FPS): distância de entidades acima de 100% com mais de 200 entidades, mistura de biomas
+  e distância de renderização com placa integrada, pré-geração com o Chunky (se instalado).
+- Painel: pausas da JVM na aba Desempenho; o protocolo da tela passou para 4.
+- Resumo ao fechar: os módulos ligados sem contador também aparecem (`also on (no counter): ...`).
+- Testado no cliente Forge de produção: os 5 mixins novos aplicados, e os ganchos com `require = 0` (limitador de FPS e
+  sombra) conferidos no bytecode exportado.
+
+**Formato do log** (para o script do pack): os prefixos `[diagnostico_lag]` etc. e as linhas `Slow tick:`,
+`Server stalled for`, `Likely cause:` e `Summary since the game started:` continuam iguais. Novidades: a linha
+`Likely cause:` pode trazer `whole JVM stopped N ms by garbage collection (...)` ou `no samples: the watchdog was paused
+too (...)`; uma linha opcional `JVM pause in the same interval:` logo abaixo; e os prefixos novos `[monitor_gc]` e
+`[diagnostico_fps]` (`Slow frame: N ms. Likely cause: mod (phase)`).
 
 ### 0.3.1
 Visual da tela e aba Config sem valores quebrados.

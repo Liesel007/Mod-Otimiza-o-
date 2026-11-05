@@ -346,6 +346,15 @@ public final class DiagnosticoLag {
         };
     }
 
+    /** Mod dono de um modulo Java (jar de mod), ou null para Minecraft/Forge/bibliotecas. */
+    public static String modDoModulo(String modulo) {
+        if (modulo == null) {
+            return null;
+        }
+        String mod = modsPorModulo().get(modulo);
+        return mod == null || MODS_BASE.contains(mod) ? null : mod;
+    }
+
     private static synchronized Map<String, String> modsPorModulo() {
         if (modPorModulo == null) {
             Map<String, String> mapa = new HashMap<>();

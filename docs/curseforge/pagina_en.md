@@ -24,6 +24,11 @@ that does the same job is already installed, so HLO can be dropped into an exist
 | Empty toasts | Skips the toast layer when there are no toasts | BadOptimizations | client |
 | Safe tooltips | Replaces null tooltip lines (a common crash) with empty lines and logs which item caused it | — | client |
 | Lag diagnostics | When a tick takes too long, logs where the server was stuck, the likely cause and each dimension's state | — | server |
+| GC monitor | Logs whole-JVM pauses (garbage collection and process freezes by the OS) and suggests JVM arguments | — | both |
+| FPS diagnostics | Finds the mod and game phase behind frame spikes (stutter), with an FPS tab | — | client |
+| Swarm rendering | Draws only the nearest mobs of a crowded type (non-hostile by default) | Out Of Sight, RenderLimiter | client |
+| Block entity distance | Stops drawing machine/animated block renderers far away (chests, signs, beacons keep vanilla distance) | Out Of Sight | client |
+| Gradual saving | Spreads the autosave over several ticks so it does not freeze the game | — | server |
 | Conflict report | Warns about known conflicts and wrong mod versions at startup | — | both |
 | Fixes | Re-Avaritia Infinity Chest key growth and Fast Async World Save shutdown data loss (only on when those mods are installed) | — | — |
 
@@ -64,6 +69,8 @@ modpack: real gains depend on how often each situation happens in your game. The
 | 20,500 cows | 590 ms / 1.7 | 88 ms / 11.3 |
 | A 5,000-slot inventory and a 5,000-entry Infinity Chest, 4 machines at each pushing 20 stacks/tick\* | 287 ms (3.5 TPS) | 20 ms (20 TPS) |
 | Same setup, burst of 400 stacks/tick\* | server crashed (60 s tick) | 18 ms (20 TPS) |
+| Autosave tick with 529 changed chunks (gradual saving) | 737 ms | 54 ms |
+| 300 cows in view, frame time (swarm rendering, software rendering) | 403 ms | 287 ms |
 | Client CPU in the menu with the window unfocused | 193% | 67% |
 
 \* with `insercao_rapida` and `insercao_rapida.orcamento=true` (the budget refuses extra full scans in a tick and the
