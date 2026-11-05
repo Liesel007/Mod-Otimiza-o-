@@ -104,6 +104,11 @@ public class TelaHL extends Screen {
         int cor;
         boolean listra;
         ControleConfig controle;
+        float[] serie;
+        boolean[] marcas;
+        String legenda = "";
+        /** Teto da escala do grafico (0 = sem teto): um pico de segundos nao achata o resto. */
+        float escalaMax;
         FormattedCharSequence textoFormatado;
         int altura = LINHA;
         // calculado ao desenhar
@@ -135,7 +140,7 @@ public class TelaHL extends Screen {
         ch = h - TOPO - RODAPE - 4;
         montarAbas();
         controles.values().stream().filter(c -> c.caixa != null).forEach(c -> addWidget(c.caixa));
-        RedeHL.CANAL.sendToServer(new RedeHL.C2SInscrever(aba));
+        RedeHL.CANAL.sendToServer(new RedeHL.C2SInscrever(abaServidor(aba)));
         reconstruir();
     }
 
@@ -170,7 +175,7 @@ public class TelaHL extends Screen {
     public void tick() {
         ticks++;
         if (ticks % 40 == 0) {
-            RedeHL.CANAL.sendToServer(new RedeHL.C2SInscrever(aba)); // sinal de vida: sem ele o servidor para em 5 s
+            RedeHL.CANAL.sendToServer(new RedeHL.C2SInscrever(abaServidor(aba))); // sinal de vida: sem ele o servidor para em 5 s
         }
         controles.values().stream().filter(c -> c.caixa != null).forEach(c -> c.caixa.tick());
     }
@@ -186,8 +191,13 @@ public class TelaHL extends Screen {
             controles.values().stream().filter(c -> c.caixa != null).forEach(c -> removeWidget(c.caixa));
             controles.clear();
         }
-        RedeHL.CANAL.sendToServer(new RedeHL.C2SInscrever(nova));
+        RedeHL.CANAL.sendToServer(new RedeHL.C2SInscrever(abaServidor(nova)));
         rebuildWidgets();
+    }
+
+    /** A aba FPS e so do cliente: o servidor recebe GERAL (dados do topo e sinal de vida). */
+    private static Aba abaServidor(Aba a) {
+        return a == Aba.FPS ? Aba.GERAL : a;
     }
 
     /** Para testes e atalhos: troca de aba como se a aba fosse clicada. */
@@ -264,7 +274,7 @@ public class TelaHL extends Screen {
         linhas.add(l);
     }
 
-    private void barra(String rotulo, float fracao, int cor, String valor) {
+    private Linha barra(String rotulo, float fracao, int cor, String valor) {
         Linha l = new Linha();
         l.tipo = Tipo.BARRA;
         l.texto = Component.literal(rotulo);
@@ -273,6 +283,7 @@ public class TelaHL extends Screen {
         l.cor = cor;
         l.altura = 15;
         linhas.add(l);
+        return l;
     }
 
     /** "1 travamento", "3 travamentos" (chaves <nome> e <nome>s nos arquivos de idioma). */
@@ -309,6 +320,7 @@ public class TelaHL extends Screen {
             case LIMPEZA -> limpeza();
             case AVISOS -> avisos();
             case CONFIG -> config();
+            case FPS -> fps();
         }
         alturaConteudo = linhas.stream().mapToInt(l -> l.altura).sum() + 4;
         rolagem = Math.max(0, Math.min(rolagem, Math.max(0, alturaConteudo - ch)));
@@ -411,10 +423,7 @@ public class TelaHL extends Screen {
             return;
         }
         titulo(t("mspt_5min"));
-        Linha g = new Linha();
-        g.tipo = Tipo.GRAFICO;
-        g.altura = 74;
-        linhas.add(g);
+        grafico(p.historico, p.salvou, t("legenda_grafico"));
         texto(t("min_max", Math.round(p.minMs), Math.round(p.maxMs)), CINZA);
         Linha custo = texto(p.custoMs < 0 ? t("custo_medindo") : t("custo", String.format(PainelStatus.loc(), "%.3f", p.custoMs)), CINZA);
         custo.dica = List.of(Component.translatable("hlotimizacao.tela.custo_dica"));
@@ -450,6 +459,93 @@ public class TelaHL extends Screen {
         Linha java = texto("Java " + p.java + (p.ajusteGc ? "" : " · GC: " + t("nenhum") + " ⚠"), p.ajusteGc ? CINZA : AMARELO);
         if (!p.ajusteGc) {
             java.dica = List.of(Component.literal(t("dica_gc")));
+        }
+    }
+
+    private Linha grafico(float[] serie, boolean[] marcas, String legenda) {
+        Linha g = new Linha();
+        g.tipo = Tipo.GRAFICO;
+        g.altura = 74;
+        g.serie = serie;
+        g.marcas = marcas;
+        g.legenda = legenda;
+        linhas.add(g);
+        return g;
+    }
+
+    // ---------- aba FPS (dados deste cliente) ----------
+
+    private static int corFps(float fps) {
+        return fps >= 50 ? VERDE : fps >= 30 ? AMARELO : VERMELHO;
+    }
+
+    private void fps() {
+        if (!com.hlotimizacao.config.Config.ativo(Modulo.DIAGNOSTICO_FPS)) {
+            texto(t("fps_desligado"), CINZA);
+            sugestoes();
+            return;
+        }
+        float[] f = com.hlotimizacao.recursos.DiagnosticoFps.fpsUltimoMinuto();
+        float topo = Math.max(60, f[0]);
+        barra(t("fps_medio"), f[0] / topo, corFps(f[0]), PainelStatus.dec(f[0])).coluna2 = 64;
+        barra(t("fps_1"), f[1] / topo, corFps(f[1]), PainelStatus.dec(f[1])).coluna2 = 64;
+        barra(t("fps_01"), f[2] / topo, corFps(f[2]), PainelStatus.dec(f[2])).coluna2 = 64;
+        Linha resumo = texto(t("fps_picos", com.hlotimizacao.recursos.DiagnosticoFps.picosUltimoMinuto(), com.hlotimizacao.config.Config.fpsLimiteMs(),
+                PainelStatus.num(com.hlotimizacao.recursos.DiagnosticoFps.piorMs)), BRANCO);
+        resumo.dica = List.of(Component.literal(t("fps_dica_low")), Component.literal(t("fps_custo",
+                String.format(PainelStatus.loc(), "%.1f", com.hlotimizacao.recursos.DiagnosticoFps.custoUsPorFrame()))).withStyle(ChatFormatting.GRAY));
+        titulo(t("fps_grafico"));
+        grafico(com.hlotimizacao.recursos.DiagnosticoFps.historico(), null, t("fps_legenda")).escalaMax = 500;
+        List<Object[]> causas = com.hlotimizacao.recursos.DiagnosticoFps.causas();
+        titulo(t("fps_causas"));
+        if (causas.isEmpty()) {
+            texto("✔ " + t("fps_sem_picos"), VERDE);
+        }
+        long totalMs = causas.stream().mapToLong(c -> (Long) c[1]).sum();
+        boolean listra = false;
+        for (int i = 0; i < Math.min(5, causas.size()); i++) {
+            Object[] c = causas.get(i);
+            Linha l = texto((String) c[0], BRANCO);
+            l.texto2 = Component.literal(Math.round(100.0 * (Long) c[1] / Math.max(1, totalMs)) + "% · " + plural((Long) c[2], "pico"))
+                    .withStyle(st -> st.withColor(CINZA));
+            l.coluna2 = Math.max(150, cw - 120);
+            l.listra = listra;
+            listra = !listra;
+        }
+        List<com.hlotimizacao.recursos.DiagnosticoFps.Pico> ultimos = com.hlotimizacao.recursos.DiagnosticoFps.ultimosPicos();
+        if (!ultimos.isEmpty()) {
+            titulo(t("fps_ultimos"));
+            listra = false;
+            for (int i = 0; i < Math.min(10, ultimos.size()); i++) {
+                var p = ultimos.get(i);
+                Linha l = texto(Component.literal(p.hora().withNano(0) + "  ").withStyle(st -> st.withColor(CINZA))
+                        .append(Component.literal(String.format("%6s", p.duracaoMs() + " ms")).withStyle(st -> st.withColor(p.duracaoMs() >= 250 ? VERMELHO : AMARELO))));
+                l.texto2 = Component.literal(com.hlotimizacao.recursos.DiagnosticoLag.rotulo(p.mod()) + " · " + p.fase()).withStyle(st -> st.withColor(BRANCO));
+                l.coluna2 = 100;
+                l.listra = listra;
+                listra = !listra;
+                l.dica = p.detalhe().isEmpty() ? null : List.of(Component.literal(p.detalhe()));
+                if (!p.pilha().isEmpty()) {
+                    String titulo = p.hora().withNano(0) + " · " + p.duracaoMs() + " ms";
+                    String texto = com.hlotimizacao.recursos.DiagnosticoLag.rotulo(p.mod()) + " · " + p.fase()
+                            + (p.detalhe().isEmpty() ? "" : "\n" + p.detalhe()) + "\n\n" + p.pilha();
+                    l.acoes.add(new Acao(Component.literal(t("ver")), () -> mostrarTexto(titulo, texto), true, null));
+                }
+            }
+        }
+        sugestoes();
+    }
+
+    /** "O que pode ser ajustado": so sugestoes, nada e mudado sozinho. */
+    private void sugestoes() {
+        List<String[]> lista = com.hlotimizacao.cliente.AjustesSugeridos.calcular();
+        if (lista.isEmpty()) {
+            return;
+        }
+        titulo(t("ajustes"));
+        for (String[] s : lista) {
+            Linha l = texto(Component.literal("➜ ").withStyle(st -> st.withColor(AZUL)).append(Component.literal(s[0]).withStyle(st -> st.withColor(BRANCO))));
+            l.dica = List.of(Component.literal(s[1]));
         }
     }
 
@@ -864,7 +960,7 @@ public class TelaHL extends Screen {
                 int fim = cx + font.width(l.texto) + 6;
                 g.fill(fim, ty + 4, cx + cw - 2, ty + 5, 0x40FFB547);
             }
-            case GRAFICO -> desenharGrafico(g, y);
+            case GRAFICO -> desenharGrafico(g, l, y);
             case CONTROLE -> desenharControle(g, l, y, mx, my);
             case BARRA -> {
                 int limite = desenharAcoes(g, l, y, mx, my);
@@ -1040,18 +1136,20 @@ public class TelaHL extends Screen {
                 net.minecraft.network.chat.FormattedText.composite(cortado, Component.literal("…").withStyle(ChatFormatting.GRAY)));
     }
 
-    private void desenharGrafico(GuiGraphics g, int y) {
-        DadosPainel.Desempenho p = dados.desempenho;
+    private void desenharGrafico(GuiGraphics g, Linha l, int y) {
         int gx = cx + 24;
         int gw = Math.min(cw - 30, 320);
         int gh = 56;
         int topo = y + 3;
         int base = topo + gh;
         float escala = 100;
-        for (float v : p.historico) {
+        for (float v : l.serie) {
             escala = Math.max(escala, v);
         }
         escala = (float) (Math.ceil(escala / 50) * 50);
+        if (l.escalaMax > 0) {
+            escala = Math.min(escala, l.escalaMax);
+        }
         g.fill(gx - 1, topo - 1, gx + gw + 1, base + 1, 0xFF0A0C0F);
         g.fill(gx, topo, gx + gw, base, 0xFF171A20);
         // linhas de grade a cada 25% e a de 50 ms tracejada
@@ -1064,21 +1162,23 @@ public class TelaHL extends Screen {
             g.fill(x, y50, x + 2, y50 + 1, 0xFF8A6A2A);
         }
         g.drawString(font, Integer.toString(Math.round(escala)), cx, topo, CINZA_ESCURO, false);
-        g.drawString(font, "50", cx, y50 - 4, CINZA, false);
+        if (base - y50 >= 10) {
+            g.drawString(font, "50", cx, y50 - 4, CINZA, false);
+        }
         g.drawString(font, "0", cx, base - 8, CINZA_ESCURO, false);
-        int n = p.historico.length;
+        int n = l.serie.length;
         // Uma coluna por segundo, alinhado a direita (o mais recente no fim).
         float largura = (float) gw / Desempenho5min.SEGUNDOS;
         for (int i = 0; i < n; i++) {
-            float v = p.historico[i];
+            float v = l.serie[i];
             int x1 = gx + gw - (int) ((n - i) * largura);
             int x2 = Math.max(x1 + 1, gx + gw - (int) ((n - i - 1) * largura));
             int altura = Math.max(1, (int) (gh * Math.min(v, escala) / escala));
-            int cor = p.salvou[i] ? 0x5599FF : corMspt(v);
+            int cor = l.marcas != null && i < l.marcas.length && l.marcas[i] ? 0x5599FF : corMspt(v);
             g.fill(x1, base - altura, x2, base, 0xFF000000 | escurecer(cor));
             g.fill(x1, base - altura, x2, base - altura + 1, 0xFF000000 | cor);
         }
-        g.drawString(font, t("legenda_grafico"), gx, base + 4, CINZA_ESCURO, false);
+        g.drawString(font, l.legenda, gx, base + 4, CINZA_ESCURO, false);
     }
 
     /** Constantes do grafico (o servidor manda ate 300 s). */

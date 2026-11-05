@@ -21,7 +21,9 @@ public final class DadosPainel {
     public static final int TEXTO_LONGO = 600;
 
     public enum Aba {
-        GERAL, MODULOS, DESEMPENHO, LAG, LIMPEZA, AVISOS, CONFIG
+        GERAL, MODULOS, DESEMPENHO, LAG, LIMPEZA, AVISOS, CONFIG,
+        /** So do cliente (dados locais): nunca vai ao servidor, que recebe GERAL no lugar. */
+        FPS
     }
 
     // ---- visao geral (sempre) ----

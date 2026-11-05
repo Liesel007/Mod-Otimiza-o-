@@ -65,6 +65,9 @@ public final class MonitorGc {
     private static volatile String maiorDescricao = "";
     private static long ultimoLogSolucoMs;
     private static boolean iniciado;
+    /** Cliente: placa de video integrada (preenchido na primeira tela). */
+    public static volatile boolean gpuIntegrada;
+    public static volatile String placaDeVideo = "";
     private static long inicioJvmMs;
 
     private MonitorGc() {
@@ -276,9 +279,11 @@ public final class MonitorGc {
         String texto = (fabricante + " " + placa).toLowerCase(java.util.Locale.ROOT);
         boolean integrada = texto.contains("intel") || texto.contains("radeon(tm) graphics") || texto.contains("radeon graphics")
                 || texto.contains("vega 8") || texto.contains("vega 6") || texto.contains("vega 3");
+        placaDeVideo = placa;
         if (!integrada) {
             return;
         }
+        gpuIntegrada = true;
         long ram = ramTotal();
         long xmx = Runtime.getRuntime().maxMemory();
         Config.LOGGER.info("[monitor_gc] Placa de video integrada: {} (RAM total {} MB, -Xmx {} MB)", placa, ram >> 20, xmx >> 20);

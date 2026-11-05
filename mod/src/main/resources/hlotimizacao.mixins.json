@@ -23,7 +23,8 @@
   "client": [
     "client.gpuleak.RenderTargetMixin",
     "client.fps.MinecraftFpsMixin",
-    "client.toast.ToastComponentMixin"
+    "client.toast.ToastComponentMixin",
+    "client.diagfps.MinecraftFrameMixin"
   ],
   "injectors": {
     "defaultRequire": 1

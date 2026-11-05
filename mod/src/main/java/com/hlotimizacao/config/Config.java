@@ -89,6 +89,8 @@ public final class Config {
     public static final Map<String, Espec> ESPECS = Map.ofEntries(
             Map.entry("fps_sem_foco.limite", Espec.numero(1, 260)),
             Map.entry("fps_sem_foco.limite_minimizado", Espec.numero(1, 260)),
+            Map.entry("diagnostico_fps.limite_ms", Espec.numero(20, 1000)),
+            Map.entry("diagnostico_fps.registro_ms", Espec.numero(50, 10_000)),
             Map.entry("limpeza_itens.intervalo_min", Espec.numeroAuto(1, 1440)),
             Map.entry("limpeza_itens.avisos_s", new Espec(TipoChave.LISTA_NUMEROS, 1, 3600, false)),
             Map.entry("limpeza_itens.idade_minima_s", Espec.numero(0, 3600)),
@@ -119,6 +121,8 @@ public final class Config {
         return switch (chave) {
             case "fps_sem_foco.limite" -> fpsSemFoco;
             case "fps_sem_foco.limite_minimizado" -> fpsMinimizado;
+            case "diagnostico_fps.limite_ms" -> fpsLimiteMs;
+            case "diagnostico_fps.registro_ms" -> fpsRegistroMs;
             case "limpeza_itens.intervalo_min" -> limpezaIntervaloMin;
             case "limpeza_itens.idade_minima_s" -> limpezaIdadeMinimaS;
             case "limpeza_itens.max_por_tick" -> limpezaMaxPorTick;
@@ -185,6 +189,8 @@ public final class Config {
     }
 
     private static int fpsSemFoco = 15;
+    private static volatile int fpsLimiteMs = 50;
+    private static volatile int fpsRegistroMs = 250;
     private static int fpsMinimizado = 1;
     private static int lagLimiteMs = 2000;
     private static int lagIntervaloS = 30;
@@ -297,6 +303,8 @@ public final class Config {
         boolean faltando = false;
         fpsSemFoco = lerInt(props, "fps_sem_foco.limite", 15);
         fpsMinimizado = lerInt(props, "fps_sem_foco.limite_minimizado", 1);
+        fpsLimiteMs = lerInt(props, "diagnostico_fps.limite_ms", 50);
+        fpsRegistroMs = lerInt(props, "diagnostico_fps.registro_ms", 250);
         lagLimiteMs = lerInt(props, "diagnostico_lag.limite_ms", 2000);
         lagIntervaloS = lerInt(props, "diagnostico_lag.intervalo_s", 30);
         lagToleranciaS = lerInt(props, "diagnostico_lag.tolerancia_inicio_s", 30);
@@ -348,6 +356,8 @@ public final class Config {
         for (String[] chave : new String[][]{
                 {"fps_sem_foco.limite", Integer.toString(fpsSemFoco)},
                 {"fps_sem_foco.limite_minimizado", Integer.toString(fpsMinimizado)},
+                {"diagnostico_fps.limite_ms", Integer.toString(fpsLimiteMs)},
+                {"diagnostico_fps.registro_ms", Integer.toString(fpsRegistroMs)},
                 {"diagnostico_lag.limite_ms", Integer.toString(lagLimiteMs)},
                 {"diagnostico_lag.intervalo_s", Integer.toString(lagIntervaloS)},
                 {"diagnostico_lag.tolerancia_inicio_s", Integer.toString(lagToleranciaS)},
@@ -544,6 +554,15 @@ public final class Config {
         return fpsSemFoco;
     }
 
+    /** Sem carregar(): chamado da vigia e da thread de render a cada frame lento. */
+    public static int fpsLimiteMs() {
+        return fpsLimiteMs;
+    }
+
+    public static int fpsRegistroMs() {
+        return fpsRegistroMs;
+    }
+
     public static int fpsMinimizado() {
         carregar();
         return fpsMinimizado;
@@ -729,6 +748,9 @@ public final class Config {
         sb.append(Msg.t("# FPS maximo com a janela sem foco e minimizada (modulo fps_sem_foco).\n"));
         sb.append("fps_sem_foco.limite=").append(props.getProperty("fps_sem_foco.limite")).append('\n');
         sb.append("fps_sem_foco.limite_minimizado=").append(props.getProperty("fps_sem_foco.limite_minimizado")).append("\n\n");
+        sb.append(Msg.t("# diagnostico_fps (cliente): frames acima de limite_ms viram pico (amostrado); acima de registro_ms vao para o log.\n"));
+        sb.append("diagnostico_fps.limite_ms=").append(props.getProperty("diagnostico_fps.limite_ms")).append('\n');
+        sb.append("diagnostico_fps.registro_ms=").append(props.getProperty("diagnostico_fps.registro_ms")).append("\n\n");
         sb.append(Msg.t("# Tempo de tick (ms) a partir do qual o diagnostico_lag registra o travamento,\n"));
         sb.append(Msg.t("# e intervalo minimo (s) entre dois registros.\n"));
         sb.append("diagnostico_lag.limite_ms=").append(props.getProperty("diagnostico_lag.limite_ms")).append('\n');

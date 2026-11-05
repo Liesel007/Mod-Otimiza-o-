@@ -17,11 +17,23 @@ public final class EventosCliente {
         // Tela do /hl: tecla F8 (configuravel em Controles) e pacotes do servidor.
         net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext.get().getModEventBus().addListener(ClienteHL::registrarTeclas);
         MinecraftForge.EVENT_BUS.addListener(ClienteHL::aoTick);
+        if (Config.ativo(Modulo.RELATORIO_CONFLITOS)) {
+            TempoJei.instalar();
+        }
         if (Config.ativo(Modulo.DIAGNOSTICO_LAG)) {
             // Para marcar os travamentos que acontecem no salvamento ao pausar o singleplayer.
             DiagnosticoLag.definirDetectorPausa(() -> {
                 Minecraft mc = Minecraft.getInstance();
                 return mc != null && mc.hasSingleplayerServer() && mc.isPaused();
+            });
+        }
+        if (Config.ativo(Modulo.DIAGNOSTICO_FPS)) {
+            com.hlotimizacao.recursos.DiagnosticoFps.iniciar();
+            // Resumo ao sair do mundo (tambem no multiplayer, onde o resumo do servidor nao e deste PC).
+            MinecraftForge.EVENT_BUS.addListener((net.minecraftforge.client.event.ClientPlayerNetworkEvent.LoggingOut event) -> {
+                if (com.hlotimizacao.recursos.DiagnosticoFps.frames() > 0) {
+                    Config.LOGGER.info("[diagnostico_fps] {}", com.hlotimizacao.recursos.DiagnosticoFps.resumo());
+                }
             });
         }
         if (Config.ativo(Modulo.TOOLTIP_SEGURO)) {

@@ -305,7 +305,7 @@ public final class DiagnosticoLag {
         return "";
     }
 
-    private static String formatarPilha(StackTraceElement[] frames) {
+    static String formatarPilha(StackTraceElement[] frames) {
         StringBuilder sb = new StringBuilder();
         int limite = Math.min(frames.length, FRAMES_NA_PILHA);
         for (int i = 0; i < limite; i++) {
