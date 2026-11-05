@@ -90,6 +90,9 @@ public final class Config {
             Map.entry("fps_sem_foco.limite", Espec.numero(1, 260)),
             Map.entry("fps_sem_foco.limite_minimizado", Espec.numero(1, 260)),
             Map.entry("diagnostico_fps.limite_ms", Espec.numero(20, 1000)),
+            Map.entry("render_enxame.maximo_por_tipo", Espec.numero(1, 500)),
+            Map.entry("render_enxame.distancia", Espec.numero(8, 256)),
+            Map.entry("distancia_block_entities.distancia", Espec.numero(8, 256)),
             Map.entry("diagnostico_fps.registro_ms", Espec.numero(50, 10_000)),
             Map.entry("limpeza_itens.intervalo_min", Espec.numeroAuto(1, 1440)),
             Map.entry("limpeza_itens.avisos_s", new Espec(TipoChave.LISTA_NUMEROS, 1, 3600, false)),
@@ -122,6 +125,9 @@ public final class Config {
             case "fps_sem_foco.limite" -> fpsSemFoco;
             case "fps_sem_foco.limite_minimizado" -> fpsMinimizado;
             case "diagnostico_fps.limite_ms" -> fpsLimiteMs;
+            case "render_enxame.maximo_por_tipo" -> renderEnxameMaximo;
+            case "render_enxame.distancia" -> renderEnxameDistancia;
+            case "distancia_block_entities.distancia" -> beDistancia;
             case "diagnostico_fps.registro_ms" -> fpsRegistroMs;
             case "limpeza_itens.intervalo_min" -> limpezaIntervaloMin;
             case "limpeza_itens.idade_minima_s" -> limpezaIdadeMinimaS;
@@ -203,6 +209,13 @@ public final class Config {
     private static boolean ativacaoProtegerAldeoes = true;
     private static boolean ativacaoProtegerSemJogador = true;
     private static Set<String> ativacaoExcecoesEntidades = Set.of();
+    private static volatile int renderEnxameMaximo = 24;
+    private static volatile int renderEnxameDistancia = 24;
+    private static volatile Set<String> renderEnxameLista = Set.of();
+    private static volatile int beDistancia = 32;
+    private static volatile Set<String> beExcecoes = Set.of();
+    static final String BE_EXCECOES_PADRAO = "minecraft:beacon,minecraft:end_gateway,minecraft:conduit,minecraft:chest,minecraft:trapped_chest,"
+            + "minecraft:ender_chest,minecraft:sign,minecraft:hanging_sign";
     private static Set<String> ativacaoExcecoesMods = Set.of();
     private static Set<String> ativacaoDimensoesIgnoradas = Set.of();
     private static Map<String, Integer> enxameLimites = Map.of();
@@ -317,6 +330,11 @@ public final class Config {
         ativacaoProtegerAldeoes = Boolean.parseBoolean(props.getProperty("alcance_ativacao.proteger_aldeoes", "true").trim());
         ativacaoProtegerSemJogador = Boolean.parseBoolean(props.getProperty("alcance_ativacao.proteger_areas_sem_jogador", "true").trim());
         ativacaoExcecoesEntidades = lista(props, "alcance_ativacao.excecoes_entidades", EXCECOES_PADRAO);
+        renderEnxameMaximo = lerInt(props, "render_enxame.maximo_por_tipo", 24);
+        renderEnxameDistancia = lerInt(props, "render_enxame.distancia", 24);
+        renderEnxameLista = lista(props, "render_enxame.lista", "");
+        beDistancia = lerInt(props, "distancia_block_entities.distancia", 32);
+        beExcecoes = lista(props, "distancia_block_entities.excecoes", BE_EXCECOES_PADRAO);
         ativacaoExcecoesMods = lista(props, "alcance_ativacao.excecoes_mods", "");
         ativacaoDimensoesIgnoradas = lista(props, "alcance_ativacao.dimensoes_ignoradas", "");
         Map<String, Integer> limites = new java.util.HashMap<>();
@@ -372,6 +390,11 @@ public final class Config {
                 {"alcance_ativacao.excecoes_entidades", EXCECOES_PADRAO},
                 {"alcance_ativacao.excecoes_mods", ""},
                 {"alcance_ativacao.dimensoes_ignoradas", ""},
+                {"render_enxame.maximo_por_tipo", "24"},
+                {"render_enxame.distancia", "24"},
+                {"render_enxame.lista", ""},
+                {"distancia_block_entities.distancia", "32"},
+                {"distancia_block_entities.excecoes", BE_EXCECOES_PADRAO},
                 {"limite_enxame.lista", ENXAME_PADRAO},
                 {"limite_enxame.raio_chunks", "1"},
                 {"insercao_rapida.limite_slots", "54"},
@@ -621,6 +644,26 @@ public final class Config {
         return ativacaoProtegerSemJogador;
     }
 
+    public static int renderEnxameMaximo() {
+        return renderEnxameMaximo;
+    }
+
+    public static int renderEnxameDistancia() {
+        return renderEnxameDistancia;
+    }
+
+    public static Set<String> renderEnxameLista() {
+        return renderEnxameLista;
+    }
+
+    public static int beDistancia() {
+        return beDistancia;
+    }
+
+    public static Set<String> beExcecoes() {
+        return beExcecoes;
+    }
+
     public static Set<String> ativacaoExcecoesEntidades() {
         return ativacaoExcecoesEntidades;
     }
@@ -771,6 +814,16 @@ public final class Config {
         for (String chave : new String[]{"horizontal", "vertical", "intervalo", "proteger_itens", "proteger_aldeoes", "proteger_areas_sem_jogador",
                 "excecoes_entidades", "excecoes_mods", "dimensoes_ignoradas"}) {
             sb.append("alcance_ativacao.").append(chave).append('=').append(props.getProperty("alcance_ativacao." + chave)).append('\n');
+        }
+        sb.append('\n').append(Msg.t("# render_enxame (cliente): tipos com mais de maximo_por_tipo mobs carregados (ou os de 'lista') desenham so os\n"));
+        sb.append(Msg.t("# maximo_por_tipo mais proximos, e nenhum alem de 'distancia' blocos. Nunca esconde chefes, com nome, domesticados, na mira ou em combate.\n"));
+        for (String chave : new String[]{"maximo_por_tipo", "distancia", "lista"}) {
+            sb.append("render_enxame.").append(chave).append('=').append(props.getProperty("render_enxame." + chave)).append('\n');
+        }
+        sb.append('\n').append(Msg.t("# distancia_block_entities (cliente): block entities com desenho proprio (maquinas, baus animados) nao sao desenhados alem\n"));
+        sb.append(Msg.t("# de 'distancia' blocos, exceto os tipos em 'excecoes' (ids de block entity), que ficam com a distancia original.\n"));
+        for (String chave : new String[]{"distancia", "excecoes"}) {
+            sb.append("distancia_block_entities.").append(chave).append('=').append(props.getProperty("distancia_block_entities." + chave)).append('\n');
         }
         sb.append('\n').append(Msg.t("# limite_enxame: spawn natural, de geracao de chunk e de spawner e cancelado quando ja ha 'numero' entidades daquele\n"));
         sb.append(Msg.t("# tipo no chunk e nos vizinhos ate raio_chunks. Nunca vale para ovo, comando ou balde, e nunca remove entidades.\n"));

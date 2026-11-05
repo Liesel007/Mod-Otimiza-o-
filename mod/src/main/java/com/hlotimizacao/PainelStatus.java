@@ -341,6 +341,10 @@ public final class PainelStatus {
             case ALCANCE_ATIVACAO -> m("{} ticks pulados", num(com.hlotimizacao.recursos.AlcanceAtivacao.TICKS_PULADOS.get()));
             case LIMITE_ENXAME -> m("{} spawns bloqueados", num(com.hlotimizacao.recursos.LimiteEnxame.BLOQUEADOS.get()));
             case DIAGNOSTICO_INSERCAO -> m("ativo nos travamentos");
+            case RENDER_ENXAME -> m("{} de {} mobs desenhados", num(com.hlotimizacao.recursos.ContadoresCliente.enxameDesenhadas),
+                    num(com.hlotimizacao.recursos.ContadoresCliente.enxameExistentes));
+            case DISTANCIA_BLOCK_ENTITIES -> m("até {} blocos · {} desenhos pulados", Config.beDistancia(),
+                    num(com.hlotimizacao.recursos.ContadoresCliente.blockEntitiesPulados));
             case DIAGNOSTICO_FPS -> m("{} picos · pior {} ms", num(com.hlotimizacao.recursos.DiagnosticoFps.picos),
                     num(com.hlotimizacao.recursos.DiagnosticoFps.piorMs));
             case MONITOR_GC -> m("{} pausas · {} congelamentos", num(com.hlotimizacao.recursos.MonitorGc.PAUSAS_GC.get()),
@@ -372,6 +376,10 @@ public final class PainelStatus {
                     + (com.hlotimizacao.recursos.LimiteEnxame.porTipo().isEmpty() ? "" : " (" + com.hlotimizacao.recursos.LimiteEnxame.porTipo() + ")")
                     + "\n" + m("Limites: {}", Config.enxameLimites());
             case DIAGNOSTICO_FPS -> com.hlotimizacao.recursos.DiagnosticoFps.resumo();
+            case RENDER_ENXAME -> m("Desenhados {} de {} mobs no ultimo frame. Por tipo (existentes/escondidos): {}",
+                    num(com.hlotimizacao.recursos.ContadoresCliente.enxameDesenhadas), num(com.hlotimizacao.recursos.ContadoresCliente.enxameExistentes),
+                    com.hlotimizacao.recursos.ContadoresCliente.enxamePorTipo.entrySet().stream().map(e -> e.getKey() + " " + e.getValue()[0] + "/" + e.getValue()[1])
+                            .collect(java.util.stream.Collectors.joining(", ")));
             case MONITOR_GC -> com.hlotimizacao.recursos.MonitorGc.resumo()
                     + (com.hlotimizacao.recursos.MonitorGc.maiorMs() > 0 ? "\n" + m("Maior: {}", com.hlotimizacao.recursos.MonitorGc.maiorDescricao()) : "");
             case INSERCAO_RAPIDA -> m("{} inserção(ões) pelo cache, {} varredura(s) completa(s), {} recusada(s) pelo orçamento.",

@@ -23,7 +23,7 @@ public enum Preset {
 
     /** Modulos que mudam o comportamento do jogo: desligados no preset leve (em "auto"). */
     public static final Set<Modulo> MUDAM_COMPORTAMENTO = EnumSet.of(Modulo.ALCANCE_ATIVACAO, Modulo.LIMITE_ENXAME, Modulo.LIMPEZA_ITENS,
-            Modulo.INSERCAO_RAPIDA);
+            Modulo.INSERCAO_RAPIDA, Modulo.RENDER_ENXAME, Modulo.DISTANCIA_BLOCK_ENTITIES);
 
     public String chave() {
         return name().toLowerCase(Locale.ROOT);

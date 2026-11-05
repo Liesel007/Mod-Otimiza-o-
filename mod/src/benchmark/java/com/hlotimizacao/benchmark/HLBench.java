@@ -51,6 +51,9 @@ public class HLBench {
         if (FMLEnvironment.dist == Dist.CLIENT) {
             MinecraftForge.EVENT_BUS.addListener(FpsCliente::aoTick);
             TesteTooltip.registrarOuvintes();
+            if (System.getenv("HLBENCH_ENXAME") != null) {
+                TesteRenderEnxame.registrar();
+            }
             if (System.getenv("HLBENCH_FPS") != null) {
                 TesteFps.registrar();
             }
