@@ -24,7 +24,18 @@ public final class ClienteHL {
         event.register(ABRIR);
     }
 
+    private static boolean gpuVerificada;
+
     public static void aoTick(TickEvent.ClientTickEvent event) {
+        if (!gpuVerificada) {
+            gpuVerificada = true;
+            try {
+                com.hlotimizacao.recursos.MonitorGc.verificarGpuIntegrada(com.mojang.blaze3d.platform.GlUtil.getVendor(),
+                        com.mojang.blaze3d.platform.GlUtil.getRenderer());
+            } catch (Throwable t) {
+                com.hlotimizacao.config.Config.LOGGER.debug("Nao foi possivel ler a placa de video", t);
+            }
+        }
         if (event.phase != TickEvent.Phase.END) {
             return;
         }

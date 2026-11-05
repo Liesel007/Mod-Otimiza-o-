@@ -63,8 +63,9 @@ public final class Estatisticas {
             linhas.add(String.format(Msg.t("alcance_ativacao: %d tick(s) de entidade pulado(s) (%d processado(s) longe dos jogadores)"), pulados, feitos));
         }
         if (Config.ativo(Modulo.LIMITE_ENXAME)) {
+            String tipos = LimiteEnxame.porTipo();
             linhas.add(String.format(Msg.t("limite_enxame: %d spawn(s) bloqueado(s)%s"), LimiteEnxame.BLOQUEADOS.get(),
-                    LimiteEnxame.BLOQUEADOS.get() == 0 ? "" : " (" + LimiteEnxame.porTipo() + ")"));
+                    tipos.isEmpty() ? Msg.t(" (lista vazia: nada a limitar)") : " (" + tipos + ")"));
         }
         if (Config.ativo(Modulo.CORRECAO_INFINITY_CHEST) && Insercao.ATALHO_AVARITIA.get() > 0) {
             linhas.add(String.format(Msg.t("correcao_infinity_chest: %d insercao(oes) no Infinity Chest sem varrer os slots"), Insercao.ATALHO_AVARITIA.get()));
@@ -75,6 +76,9 @@ public final class Estatisticas {
         }
         if (DiagnosticoAmbiente.arquivosLentos() > 0) {
             linhas.add(String.format(Msg.t("arquivos que demoraram mais de 500 ms para abrir ao gravar: %d (antivirus?)"), DiagnosticoAmbiente.arquivosLentos()));
+        }
+        if (Config.ativo(Modulo.MONITOR_GC)) {
+            linhas.add(MonitorGc.resumo());
         }
         if (Config.ativo(Modulo.DIAGNOSTICO_LAG)) {
             linhas.add(String.format(Msg.t("diagnostico_lag: %d travamento(s) registrado(s)"), LAG_REGISTROS.get()));

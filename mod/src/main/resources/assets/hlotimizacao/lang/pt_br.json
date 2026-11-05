@@ -96,5 +96,7 @@
   "hlotimizacao.tela.dica_auto": "AUTO: o valor segue o preset.",
   "hlotimizacao.tela.rodape": "Esc ou F8 fecha",
   "hlotimizacao.tela.servidor_dedicado": "servidor dedicado",
-  "hlotimizacao.tela.versao_diferente": "Este servidor tem o HLO %s e você o HLO %s: o painel não é compatível entre essas versões. Atualize o HLO (o /hl status continua funcionando)."
+  "hlotimizacao.tela.versao_diferente": "Este servidor tem o HLO %s e você o HLO %s: o painel não é compatível entre essas versões. Atualize o HLO (o /hl status continua funcionando).",
+  "hlotimizacao.tela.pausas_jvm": "Pausas da JVM (GC e congelamentos do processo)",
+  "hlotimizacao.tela.dica_pausas": "Com a JVM parada, o tick do servidor e o render do cliente param juntos. Veja a aba Avisos para sugestões de argumentos da JVM."
 }

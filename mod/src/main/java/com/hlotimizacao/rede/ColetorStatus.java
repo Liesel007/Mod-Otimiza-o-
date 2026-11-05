@@ -134,6 +134,10 @@ public final class ColetorStatus {
         p.java = v.feature() + "." + v.interim() + "." + v.update() + " (" + System.getProperty("java.vendor", "?") + ")";
         p.ajusteGc = DiagnosticoAmbiente.temAjusteGc();
         p.custoMs = (float) com.hlotimizacao.recursos.Custo.msPorTick();
+        for (com.hlotimizacao.recursos.MonitorGc.Pausa pausa : com.hlotimizacao.recursos.MonitorGc.ultimas(5)) {
+            p.pausasJvm.add(java.time.Instant.ofEpochMilli(pausa.fimMs()).atZone(java.time.ZoneId.systemDefault()).toLocalTime().format(HORA)
+                    + " · " + pausa.descricao());
+        }
         for (ServerLevel level : server.getAllLevels()) {
             int entidades = 0;
             int itens = 0;

@@ -62,6 +62,10 @@ public final class DiagnosticoLag {
     private static volatile Thread threadServidor;
     private static volatile MinecraftServer servidor;
     private static volatile long inicioTickNs;
+    /** Tempo de GC acumulado da JVM no comeco do tick (MonitorGc.tempoGcMs). */
+    private static volatile long gcNoInicioTickMs;
+    /** referenciaNs do ultimo travamento registrado: a vigia e o fim do tick nao registram o mesmo duas vezes. */
+    private static volatile long ultimoRelatadoNs = Long.MIN_VALUE;
     private static volatile boolean emTick;
     /** Falso enquanto o mundo abre ou fecha. */
     private static volatile boolean servidorRodando;
@@ -171,10 +175,12 @@ public final class DiagnosticoLag {
             threadServidor = Thread.currentThread();
             servidor = event.getServer();
             Travamento t = atual;
-            if (t != null) {
+            if (t != null && t.referenciaNs != ultimoRelatadoNs) {
                 // Travamento entre ticks (ou um que a vigia comecou a registrar no fim do tick anterior).
                 relatorio(event.getServer(), t, t.onde == Onde.ENTRE ? t.duracaoMs : -1);
             }
+            atual = null;
+            gcNoInicioTickMs = MonitorGc.tempoGcMs();
             inicioTickNs = agora;
             emTick = true;
         } else {
@@ -255,7 +261,7 @@ public final class DiagnosticoLag {
             }
             return;
         }
-        if (paradoMs < Config.lagLimiteMs() || !podeRegistrar()) {
+        if (paradoMs < Config.lagLimiteMs() || !podeRegistrar() || referencia == ultimoRelatadoNs) {
             return;
         }
         t = new Travamento(onde, referencia);
@@ -414,7 +420,9 @@ public final class DiagnosticoLag {
     public static final String COMPRESSAO = "compressao ao salvar";
     public static final String CARREGANDO_CLASSES = "carregamento de classes";
     public static final String INSERCAO = "insercao em inventario grande";
+    public static final String PAUSA_JVM = "pausa da JVM inteira";
     private static final Map<String, String> EXPLICACAO = Map.of(
+            PAUSA_JVM, "coleta de lixo ou o sistema operacional congelou o processo inteiro; veja o monitor_gc e a aba Avisos",
             CHUNK_SINCRONO, "o servidor esperou um chunk ficar pronto; comum ao teleportar ou viajar rapido",
             GRAVACAO_DISCO, "abrindo ou gravando arquivo; se for frequente, veja o antivirus",
             COMPRESSAO, "comprimindo dados ao salvar",
@@ -439,6 +447,7 @@ public final class DiagnosticoLag {
             case COMPRESSAO -> "compressão";
             case CARREGANDO_CLASSES -> "carregar classes";
             case INSERCAO -> "inserção em inventário";
+            case PAUSA_JVM -> "pausa da JVM";
             case SEM_MOD -> "Minecraft/Forge";
             default -> chave;
         });
@@ -684,6 +693,7 @@ public final class DiagnosticoLag {
     /** Roda na thread do servidor. duracaoMs < 0: desconhecida (usa a da vigia). */
     private static void relatorio(MinecraftServer server, Travamento t, long duracaoMs) {
         atual = null;
+        ultimoRelatadoNs = t.referenciaNs;
         ultimoRegistroMs = System.currentTimeMillis();
         Estatisticas.LAG_REGISTROS.incrementAndGet();
         List<StackTraceElement[]> amostras;
@@ -697,10 +707,34 @@ public final class DiagnosticoLag {
         } else {
             sb.append(String.format(Msg.t("[diagnostico_lag] Tick lento: %d ms (dentro do tick%s).%n"), duracao, marcaSalvamento(t)));
         }
-        sb.append(Msg.t("  Provavel causa: ")).append(provavelCausa(amostras)).append('\n');
+        long fimMs = System.currentTimeMillis();
+        long inicioMs = fimMs - Math.max(duracao, (System.nanoTime() - t.referenciaNs) / 1_000_000);
+        MonitorGc.Pausa pausa = MonitorGc.pausaEntre(inicioMs, fimMs);
+        long gcNoTick = t.onde == Onde.DENTRO ? MonitorGc.tempoGcMs() - gcNoInicioTickMs : 0;
+        if (pausa == null && gcNoTick >= Math.max(50, duracao / 3)) {
+            // A notificacao da coleta ainda nao chegou, mas o contador da JVM ja mostra o tempo parado.
+            pausa = new MonitorGc.Pausa(fimMs - gcNoTick, fimMs, true, "", "", 0, 0);
+        }
+        // Poucas amostras para a duracao: a propria vigia ficou parada, a JVM inteira parou.
+        boolean vigiaParada = amostras.size() * AMOSTRA_MS < duracao / 2;
+        boolean culpaDaPausa = pausa != null && (vigiaParada || pausa.duracaoMs() >= duracao / 2);
+        if (culpaDaPausa) {
+            sb.append(Msg.t("  Provavel causa: ")).append(pausa.descricao()).append('\n');
+        } else if (amostras.isEmpty() && duracao >= Config.lagLimiteMs()) {
+            sb.append(Msg.t("  Provavel causa: ")).append(Msg.t("sem amostras: a vigia tambem ficou parada (pausa da JVM inteira; veja o monitor_gc)")).append('\n');
+        } else {
+            sb.append(Msg.t("  Provavel causa: ")).append(provavelCausa(amostras)).append('\n');
+            if (pausa != null) {
+                sb.append(Msg.t("  Pausa da JVM no mesmo intervalo: ")).append(pausa.descricao()).append('\n');
+            }
+        }
         Map<String, String> exemplos = new HashMap<>();
         Map<String, Integer> porMod = contarPorMod(amostras, exemplos);
         exemplos.forEach(FRAME_POR_MOD::putIfAbsent);
+        if (culpaDaPausa) {
+            porMod = new HashMap<>(Map.of(PAUSA_JVM, Math.max(1, amostras.size())));
+            exemplos.put(PAUSA_JVM, pausa.descricao());
+        }
         String principal = porMod.entrySet().stream().max(Map.Entry.comparingByValue()).map(Map.Entry::getKey).orElse(SEM_MOD);
         String pilhaResumida = amostras.isEmpty() ? Msg.t("(sem amostras)") : resumirPilha(amostras.get(0));
         int inicioDimensoes = sb.length();
@@ -729,7 +763,7 @@ public final class DiagnosticoLag {
         guardar(new Registro(java.time.LocalTime.now(), duracao,
                         t.salvando ? "salvamento" : t.onde.texto, principal, exemplos.getOrDefault(principal, "?"),
                         pilhaResumida, dimensoesTexto.length() > 1500 ? dimensoesTexto.substring(0, 1500) + "..." : dimensoesTexto),
-                porMod, amostras.size());
+                porMod, culpaDaPausa ? Math.max(1, amostras.size()) : amostras.size());
         Config.LOGGER.warn(sb.toString().stripTrailing());
     }
 

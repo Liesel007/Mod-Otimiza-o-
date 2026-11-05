@@ -424,6 +424,16 @@ public class TelaHL extends Screen {
         texto(t("coleta_lixo", p.pausasGc) + (p.pausasGc > 0 ? ", " + t("maior") + " " + PainelStatus.duracao(p.maiorPausaGcMs) : "")
                 + " · -Xms " + (p.xms > 0 ? gb(p.xms) + " GB" : "?") + " / -Xmx " + gb(dados.memMax) + " GB", p.pausasGc > 0 ? AMARELO : CINZA);
         texto(t("memoria_detalhe", gb(dados.memUsada), gb(p.memAlocada), gb(dados.memMax)), CINZA);
+        if (!p.pausasJvm.isEmpty()) {
+            titulo(t("pausas_jvm"));
+            boolean listraPausa = false;
+            for (String pausa : p.pausasJvm) {
+                Linha l = texto(pausa, AMARELO);
+                l.dica = List.of(Component.literal(pausa), Component.literal(t("dica_pausas")).withStyle(ChatFormatting.DARK_AQUA));
+                l.listra = listraPausa;
+                listraPausa = !listraPausa;
+            }
+        }
         titulo(t("dimensoes"));
         boolean listra = false;
         for (DadosPainel.Dimensao dim : p.dimensoes) {

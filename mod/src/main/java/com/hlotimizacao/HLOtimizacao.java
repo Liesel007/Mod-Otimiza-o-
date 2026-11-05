@@ -48,6 +48,7 @@ public class HLOtimizacao {
         ModoSeguro.ouvir(null, TickEvent.ServerTickEvent.class, Desempenho::aoTick);
         if (Config.ativo(Modulo.LIMITE_ENXAME)) {
             ModoSeguro.ouvir(Modulo.LIMITE_ENXAME, MobSpawnEvent.FinalizeSpawn.class, com.hlotimizacao.recursos.LimiteEnxame::aoSpawnar);
+            ModoSeguro.ouvir(Modulo.LIMITE_ENXAME, net.minecraftforge.event.entity.EntityJoinLevelEvent.class, com.hlotimizacao.recursos.LimiteEnxame::aoEntrar);
         }
         if (Config.ativo(Modulo.RELATORIO_CONFLITOS)) {
             ModoSeguro.ouvir(Modulo.RELATORIO_CONFLITOS, TickEvent.ServerTickEvent.class, com.hlotimizacao.recursos.DimensoesPesadas::aoTick);

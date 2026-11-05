@@ -96,5 +96,7 @@
   "hlotimizacao.tela.dica_auto": "AUTO: the value follows the preset.",
   "hlotimizacao.tela.rodape": "Esc or F8 to close",
   "hlotimizacao.tela.servidor_dedicado": "dedicated server",
-  "hlotimizacao.tela.versao_diferente": "This server has HLO %s and you have HLO %s: the panel is not compatible between these versions. Update HLO (/hl status still works)."
+  "hlotimizacao.tela.versao_diferente": "This server has HLO %s and you have HLO %s: the panel is not compatible between these versions. Update HLO (/hl status still works).",
+  "hlotimizacao.tela.pausas_jvm": "JVM pauses (GC and process freezes)",
+  "hlotimizacao.tela.dica_pausas": "While the JVM is paused, the server tick and the client render stop together. See the Warnings tab for JVM argument suggestions."
 }

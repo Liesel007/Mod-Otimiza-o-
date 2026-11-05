@@ -341,6 +341,8 @@ public final class PainelStatus {
             case ALCANCE_ATIVACAO -> m("{} ticks pulados", num(com.hlotimizacao.recursos.AlcanceAtivacao.TICKS_PULADOS.get()));
             case LIMITE_ENXAME -> m("{} spawns bloqueados", num(com.hlotimizacao.recursos.LimiteEnxame.BLOQUEADOS.get()));
             case DIAGNOSTICO_INSERCAO -> m("ativo nos travamentos");
+            case MONITOR_GC -> m("{} pausas · {} congelamentos", num(com.hlotimizacao.recursos.MonitorGc.PAUSAS_GC.get()),
+                    num(com.hlotimizacao.recursos.MonitorGc.SOLUCOS.get()));
             case INSERCAO_RAPIDA -> m("{} pelo cache · {} varreduras", num(com.hlotimizacao.recursos.Insercao.RAPIDAS.get()),
                     num(com.hlotimizacao.recursos.Insercao.VARREDURAS.get()));
             case GATILHO_INVENTARIO, FPS_SEM_FOCO, TOASTS_VAZIOS, CORRECAO_FASTASYNCWORLDSAVE -> m("ativo");
@@ -365,8 +367,10 @@ public final class PainelStatus {
                     num(com.hlotimizacao.recursos.AlcanceAtivacao.TICKS_PULADOS.get()), num(com.hlotimizacao.recursos.AlcanceAtivacao.TICKS_PROCESSADOS_LONGE.get()),
                     Config.ativacaoHorizontal(), Config.ativacaoVertical(), Config.ativacaoIntervalo());
             case LIMITE_ENXAME -> m("Spawns bloqueados: {}", num(com.hlotimizacao.recursos.LimiteEnxame.BLOQUEADOS.get()))
-                    + (com.hlotimizacao.recursos.LimiteEnxame.BLOQUEADOS.get() == 0 ? "" : " (" + com.hlotimizacao.recursos.LimiteEnxame.porTipo() + ")")
+                    + (com.hlotimizacao.recursos.LimiteEnxame.porTipo().isEmpty() ? "" : " (" + com.hlotimizacao.recursos.LimiteEnxame.porTipo() + ")")
                     + "\n" + m("Limites: {}", Config.enxameLimites());
+            case MONITOR_GC -> com.hlotimizacao.recursos.MonitorGc.resumo()
+                    + (com.hlotimizacao.recursos.MonitorGc.maiorMs() > 0 ? "\n" + m("Maior: {}", com.hlotimizacao.recursos.MonitorGc.maiorDescricao()) : "");
             case INSERCAO_RAPIDA -> m("{} inserção(ões) pelo cache, {} varredura(s) completa(s), {} recusada(s) pelo orçamento.",
                     num(com.hlotimizacao.recursos.Insercao.RAPIDAS.get()), num(com.hlotimizacao.recursos.Insercao.VARREDURAS.get()),
                     num(com.hlotimizacao.recursos.Insercao.RECUSADAS.get()));

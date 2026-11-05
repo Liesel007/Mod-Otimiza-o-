@@ -103,6 +103,10 @@ public class HLBench {
                         .then(Commands.literal("excecoes").executes(c -> seguro(c, TesteEntidades::excecoes)))
                         .then(Commands.literal("spawner").executes(c -> seguro(c, TesteEntidades::spawner)))
                         .then(Commands.literal("contar_spawner").executes(c -> seguro(c, TesteEntidades::contarSpawner))))
+                .then(Commands.literal("gc").then(Commands.argument("mb", IntegerArgumentType.integer(0))
+                        .executes(c -> seguro(c, HLBench::pausaGc))))
+                .then(Commands.literal("formigueiro").executes(c -> seguro(c, TesteFormigueiro::rodar))
+                        .then(Commands.literal("reduzir").executes(c -> seguro(c, TesteFormigueiro::reduzir))))
                 .then(Commands.literal("itens")
                         .then(Commands.literal("espalhar").then(Commands.argument("n", IntegerArgumentType.integer(1))
                                 .then(Commands.argument("chunks_lado", IntegerArgumentType.integer(1, 30))
@@ -122,7 +126,7 @@ public class HLBench {
                                                 .executes(c -> seguro(c, TesteBau::gerar))))))
                         .then(Commands.literal("medir").executes(c -> seguro(c, TesteBau::medir))))
                 .then(Commands.literal("pendentes").then(Commands.argument("quantidade", IntegerArgumentType.integer(1))
-                        .then(Commands.argument("mb", IntegerArgumentType.integer(1))
+                        .then(Commands.argument("mb", IntegerArgumentType.integer(0))
                                 .executes(c -> seguro(c, TesteLag::pendentes)))))
                 .then(Commands.literal("salvamento")
                         .then(Commands.literal("preparar").executes(c -> seguro(c, TesteSalvamento::preparar)))
@@ -263,6 +267,30 @@ public class HLBench {
         LOGGER.info("HLBENCH esvaziar obtida_antes_de_esvaziar={}", antesDeEsvaziar);
         boolean obtida = conquista != null && jogador.getAdvancements().getOrStartProgress(conquista).isDone();
         LOGGER.info("HLBENCH esvaziar conquista_existe={} obtida={} slots_vazios_ao_obter={}", conquista != null, obtida, vazios);
+        return 1;
+    }
+
+    private static Object[] lixoVivo;
+
+    /**
+     * 0.4.0: "hlbench gc <milhoes>" enche o heap com objetos pequenos vivos (guardados aqui); "hlbench gc 0" so chama
+     * System.gc() dentro do tick: a coleta completa precisa marcar todos eles, e o tick fica parado pela pausa.
+     */
+    static int pausaGc(CommandContext<CommandSourceStack> ctx) {
+        int milhoes = IntegerArgumentType.getInteger(ctx, "mb");
+        if (milhoes > 0) {
+            Object[] cadeia = new Object[milhoes * 1_000_000];
+            for (int i = 0; i < cadeia.length; i++) {
+                cadeia[i] = new int[]{i};
+            }
+            lixoVivo = cadeia;
+            LOGGER.info("HLBENCH gc objetos_vivos={}", cadeia.length);
+            return 1;
+        }
+        long inicio = System.nanoTime();
+        System.gc();
+        long ms = (System.nanoTime() - inicio) / 1_000_000;
+        LOGGER.info("HLBENCH gc pausa_medida={} ms objetos_vivos={}", ms, lixoVivo == null ? 0 : lixoVivo.length);
         return 1;
     }
 

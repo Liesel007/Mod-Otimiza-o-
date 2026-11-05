@@ -51,30 +51,15 @@ public final class Desempenho {
     private Desempenho() {
     }
 
-    public static synchronized void iniciarGc() {
-        if (gcRegistrado) {
-            return;
-        }
-        gcRegistrado = true;
-        try {
-            for (GarbageCollectorMXBean gc : ManagementFactory.getGarbageCollectorMXBeans()) {
-                if (gc instanceof NotificationEmitter emissor) {
-                    emissor.addNotificationListener((notificacao, dado) -> {
-                        if (!GarbageCollectionNotificationInfo.GARBAGE_COLLECTION_NOTIFICATION.equals(notificacao.getType())) {
-                            return;
-                        }
-                        GarbageCollectionNotificationInfo info = GarbageCollectionNotificationInfo.from((CompositeData) notificacao.getUserData());
-                        long ms = info.getGcInfo().getDuration();
-                        // "Concurrent" roda junto com o jogo e nao para as threads.
-                        if (ms >= PAUSA_GC_LONGA_MS && !info.getGcName().contains("Concurrent")) {
-                            PAUSAS_GC_LONGAS.incrementAndGet();
-                            maiorPausaGcMs = Math.max(maiorPausaGcMs, ms);
-                        }
-                    }, null, null);
-                }
-            }
-        } catch (Throwable t) {
-            Config.LOGGER.debug("Nao foi possivel acompanhar as pausas de coleta de lixo", t);
+    /** Pausas da coleta de lixo chegam do MonitorGc (que tem o ouvinte da JVM). */
+    public static void iniciarGc() {
+        MonitorGc.iniciar();
+    }
+
+    static void registrarPausaGc(long ms) {
+        if (ms >= PAUSA_GC_LONGA_MS) {
+            PAUSAS_GC_LONGAS.incrementAndGet();
+            maiorPausaGcMs = Math.max(maiorPausaGcMs, ms);
         }
     }
 

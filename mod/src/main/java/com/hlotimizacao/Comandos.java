@@ -66,6 +66,13 @@ public final class Comandos {
                     return 1;
                 }));
         raiz.then(Commands.literal("entidades").requires(Comandos::podeAdministrar).executes(Comandos::entidades));
+        if (Config.ativo(Modulo.LIMITE_ENXAME)) {
+            com.mojang.brigadier.suggestion.SuggestionProvider<CommandSourceStack> tipos = (c, b) ->
+                    net.minecraft.commands.SharedSuggestionProvider.suggest(Config.enxameLimites().keySet(), b);
+            raiz.then(Commands.literal("enxame").requires(s -> s.hasPermission(2))
+                    .then(Commands.literal("reduzir").then(Commands.argument("tipo", com.mojang.brigadier.arguments.StringArgumentType.greedyString())
+                            .suggests(tipos).executes(ctx -> reduzirEnxame(ctx, false)))));
+        }
         if (Config.ativo(Modulo.LIMPEZA_ITENS)) {
             raiz.then(Commands.literal("limpar").requires(s -> s.hasPermission(2))
                     .executes(ctx -> {
@@ -130,6 +137,26 @@ public final class Comandos {
                             Component.literal(dim + " chunk " + chunk.x + ", " + chunk.z + "\n" + e.getValue() + "\n" + Msg.f("Clique: {}", tp)))));
             ctx.getSource().sendSuccess(() -> linha, false);
         }
+        return 1;
+    }
+
+    /** /hl enxame reduzir <tipo> [confirmar]: sem "confirmar" so mostra quantos sairiam. */
+    private static int reduzirEnxame(CommandContext<CommandSourceStack> ctx, boolean ignorado) {
+        String arg = com.mojang.brigadier.arguments.StringArgumentType.getString(ctx, "tipo").trim();
+        boolean confirmar = arg.endsWith(" confirmar") || arg.endsWith(" confirm");
+        String tipo = confirmar ? arg.substring(0, arg.lastIndexOf(' ')).trim() : arg;
+        int n = com.hlotimizacao.recursos.LimiteEnxame.reduzir(ctx.getSource().getServer(), tipo, confirmar);
+        if (n < 0) {
+            responder(ctx, Msg.f("{} nao esta em limite_enxame.lista", tipo));
+            return 0;
+        }
+        if (!confirmar) {
+            responder(ctx, Msg.f("{} {} sairiam (sem drops), deixando no maximo {} por regiao. Para remover: /hl enxame reduzir {} confirmar",
+                    PainelStatus.num(n), tipo, Config.enxameLimites().get(tipo), tipo));
+            return 1;
+        }
+        Config.LOGGER.info("[limite_enxame] /hl enxame reduzir {}: {} removido(s) por {}", tipo, n, ctx.getSource().getTextName());
+        responder(ctx, Msg.f("{} {} removido(s).", PainelStatus.num(n), tipo));
         return 1;
     }
 
