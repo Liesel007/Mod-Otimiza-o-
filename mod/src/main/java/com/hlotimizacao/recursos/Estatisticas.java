@@ -6,6 +6,7 @@ import com.hlotimizacao.config.Modulo;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
@@ -25,6 +26,27 @@ public final class Estatisticas {
     public static final AtomicLong SALVAMENTO_FALHAS = new AtomicLong();
     public static final Set<String> SALVAMENTO_CLASSES_SINCRONAS = ConcurrentHashMap.newKeySet();
     public static final AtomicLong LAG_REGISTROS = new AtomicLong();
+    /** Classe com save(File) proprio -> {ns total, gravacoes, maior ns}: para saber qual mod reportar. */
+    private static final Map<String, long[]> SAVE_PROPRIO = new java.util.concurrent.ConcurrentHashMap<>();
+
+    public static void registrarSaveProprio(String classe, long ns) {
+        long[] v = SAVE_PROPRIO.computeIfAbsent(classe, k -> new long[3]);
+        synchronized (v) {
+            v[0] += ns;
+            v[1]++;
+            v[2] = Math.max(v[2], ns);
+        }
+    }
+
+    /** "IPSaveData 1.200 ms (12x, maior 300 ms), ..." das 5 classes que mais gastaram no thread principal. */
+    public static String saveProprioPorClasse() {
+        return SAVE_PROPRIO.entrySet().stream()
+                .sorted((a, b) -> Long.compare(b.getValue()[0], a.getValue()[0]))
+                .limit(5)
+                .map(e -> e.getKey().substring(e.getKey().lastIndexOf('.') + 1) + " " + e.getValue()[0] / 1_000_000 + " ms ("
+                        + e.getValue()[1] + "x, " + Msg.f("maior {} ms", e.getValue()[2] / 1_000_000) + ")")
+                .collect(java.util.stream.Collectors.joining(", "));
+    }
 
     private Estatisticas() {
     }
@@ -49,6 +71,10 @@ public final class Estatisticas {
                     SALVAMENTO_ASSINCRONOS.get(), SALVAMENTO_SINCRONOS.get(), SALVAMENTO_CLASSES_SINCRONAS.size(),
                     SALVAMENTO_CLASSES_SINCRONAS.isEmpty() ? "" : ": " + String.join(", ", SALVAMENTO_CLASSES_SINCRONAS),
                     SALVAMENTO_FALHAS.get()));
+            String porClasse = saveProprioPorClasse();
+            if (!porClasse.isEmpty()) {
+                linhas.add(Msg.f("salvamento_assincrono: tempo no thread principal das classes com save(File) proprio: {}", porClasse));
+            }
         }
         if (Config.ativo(Modulo.CORRECAO_INFINITY_CHEST)) {
             linhas.add(String.format(Msg.t("correcao_infinity_chest: %d bau(s) corrigido(s) ao carregar, %d chave(s) consertada(s), %d entrada(s) duplicada(s) somada(s)"),
@@ -76,6 +102,10 @@ public final class Estatisticas {
         }
         if (DiagnosticoAmbiente.arquivosLentos() > 0) {
             linhas.add(String.format(Msg.t("arquivos que demoraram mais de 500 ms para abrir ao gravar: %d (antivirus?)"), DiagnosticoAmbiente.arquivosLentos()));
+        }
+        if (Config.ativo(Modulo.SALVAMENTO_GRADUAL)) {
+            linhas.add(String.format(Msg.t("salvamento_gradual: %d autosave(s) distribuido(s), %d chunk(s) salvos aos poucos, maior tick gasto salvando %d ms"),
+                    SalvamentoGradual.AUTOSAVES.get(), SalvamentoGradual.CHUNKS.get(), SalvamentoGradual.maiorPassoMs()));
         }
         if (Config.ativo(Modulo.MONITOR_GC)) {
             linhas.add(MonitorGc.resumo());

@@ -18,7 +18,9 @@
     "avaritia.StorageUtilsMixin",
     "avaritia.ChestHandlerMixin",
     "avaritia.ServerChestMixin",
-    "avaritia.ServerChestManagerMixin"
+    "avaritia.ServerChestManagerMixin",
+    "salvamentogradual.MinecraftServerSalvarMixin",
+    "salvamentogradual.ChunkMapGradualMixin"
   ],
   "client": [
     "client.gpuleak.RenderTargetMixin",

@@ -52,6 +52,7 @@ public final class Config {
         EDITAVEIS.put("diagnostico_lag.tolerancia_inicio_s", "Segundos sem registrar depois de abrir o mundo");
         EDITAVEIS.put("diagnostico_lag.ignorar_mixins", "Mixins que so repassam a chamada (mod:metodo, separados por virgula)");
         EDITAVEIS.put("salvamento_assincrono.serializar_classes", "Classes com save(File) proprio gravadas em outra thread (cuidado)");
+        EDITAVEIS.put("salvamento_gradual.orcamento_ms", "Milissegundos por tick gastos salvando chunks no autosave (1 a 100)");
         EDITAVEIS.put("alcance_ativacao.horizontal", "Distancia horizontal (blocos) de um jogador ate a qual a entidade e processada todo tick");
         EDITAVEIS.put("alcance_ativacao.vertical", "Distancia vertical (blocos) de um jogador ate a qual a entidade e processada todo tick");
         EDITAVEIS.put("alcance_ativacao.intervalo", "Entidades longe sao processadas 1 vez a cada N ticks (2 a 200)");
@@ -91,6 +92,7 @@ public final class Config {
             Map.entry("fps_sem_foco.limite_minimizado", Espec.numero(1, 260)),
             Map.entry("diagnostico_fps.limite_ms", Espec.numero(20, 1000)),
             Map.entry("render_enxame.maximo_por_tipo", Espec.numero(1, 500)),
+            Map.entry("salvamento_gradual.orcamento_ms", Espec.numero(1, 100)),
             Map.entry("render_enxame.distancia", Espec.numero(8, 256)),
             Map.entry("distancia_block_entities.distancia", Espec.numero(8, 256)),
             Map.entry("diagnostico_fps.registro_ms", Espec.numero(50, 10_000)),
@@ -126,6 +128,7 @@ public final class Config {
             case "fps_sem_foco.limite_minimizado" -> fpsMinimizado;
             case "diagnostico_fps.limite_ms" -> fpsLimiteMs;
             case "render_enxame.maximo_por_tipo" -> renderEnxameMaximo;
+            case "salvamento_gradual.orcamento_ms" -> salvamentoGradualOrcamentoMs;
             case "render_enxame.distancia" -> renderEnxameDistancia;
             case "distancia_block_entities.distancia" -> beDistancia;
             case "diagnostico_fps.registro_ms" -> fpsRegistroMs;
@@ -210,6 +213,7 @@ public final class Config {
     private static boolean ativacaoProtegerSemJogador = true;
     private static Set<String> ativacaoExcecoesEntidades = Set.of();
     private static volatile int renderEnxameMaximo = 24;
+    private static volatile int salvamentoGradualOrcamentoMs = 10;
     private static volatile int renderEnxameDistancia = 24;
     private static volatile Set<String> renderEnxameLista = Set.of();
     private static volatile int beDistancia = 32;
@@ -331,6 +335,7 @@ public final class Config {
         ativacaoProtegerSemJogador = Boolean.parseBoolean(props.getProperty("alcance_ativacao.proteger_areas_sem_jogador", "true").trim());
         ativacaoExcecoesEntidades = lista(props, "alcance_ativacao.excecoes_entidades", EXCECOES_PADRAO);
         renderEnxameMaximo = lerInt(props, "render_enxame.maximo_por_tipo", 24);
+        salvamentoGradualOrcamentoMs = lerInt(props, "salvamento_gradual.orcamento_ms", 10);
         renderEnxameDistancia = lerInt(props, "render_enxame.distancia", 24);
         renderEnxameLista = lista(props, "render_enxame.lista", "");
         beDistancia = lerInt(props, "distancia_block_entities.distancia", 32);
@@ -391,6 +396,7 @@ public final class Config {
                 {"alcance_ativacao.excecoes_mods", ""},
                 {"alcance_ativacao.dimensoes_ignoradas", ""},
                 {"render_enxame.maximo_por_tipo", "24"},
+                {"salvamento_gradual.orcamento_ms", "10"},
                 {"render_enxame.distancia", "24"},
                 {"render_enxame.lista", ""},
                 {"distancia_block_entities.distancia", "32"},
@@ -644,6 +650,10 @@ public final class Config {
         return ativacaoProtegerSemJogador;
     }
 
+    public static int salvamentoGradualOrcamentoMs() {
+        return salvamentoGradualOrcamentoMs;
+    }
+
     public static int renderEnxameMaximo() {
         return renderEnxameMaximo;
     }
@@ -815,6 +825,8 @@ public final class Config {
                 "excecoes_entidades", "excecoes_mods", "dimensoes_ignoradas"}) {
             sb.append("alcance_ativacao.").append(chave).append('=').append(props.getProperty("alcance_ativacao." + chave)).append('\n');
         }
+        sb.append('\n').append(Msg.t("# salvamento_gradual: no autosave, ms por tick gastos salvando chunks (o resto fica para os proximos ticks).\n"));
+        sb.append("salvamento_gradual.orcamento_ms=").append(props.getProperty("salvamento_gradual.orcamento_ms")).append('\n');
         sb.append('\n').append(Msg.t("# render_enxame (cliente): tipos com mais de maximo_por_tipo mobs carregados (ou os de 'lista') desenham so os\n"));
         sb.append(Msg.t("# maximo_por_tipo mais proximos, e nenhum alem de 'distancia' blocos. Nunca esconde chefes, com nome, domesticados, na mira ou em combate.\n"));
         for (String chave : new String[]{"maximo_por_tipo", "distancia", "lista"}) {

@@ -341,6 +341,8 @@ public final class PainelStatus {
             case ALCANCE_ATIVACAO -> m("{} ticks pulados", num(com.hlotimizacao.recursos.AlcanceAtivacao.TICKS_PULADOS.get()));
             case LIMITE_ENXAME -> m("{} spawns bloqueados", num(com.hlotimizacao.recursos.LimiteEnxame.BLOQUEADOS.get()));
             case DIAGNOSTICO_INSERCAO -> m("ativo nos travamentos");
+            case SALVAMENTO_GRADUAL -> m("{} autosaves · {} chunks", num(com.hlotimizacao.recursos.SalvamentoGradual.AUTOSAVES.get()),
+                    num(com.hlotimizacao.recursos.SalvamentoGradual.CHUNKS.get()));
             case RENDER_ENXAME -> m("{} de {} mobs desenhados", num(com.hlotimizacao.recursos.ContadoresCliente.enxameDesenhadas),
                     num(com.hlotimizacao.recursos.ContadoresCliente.enxameExistentes));
             case DISTANCIA_BLOCK_ENTITIES -> m("até {} blocos · {} desenhos pulados", Config.beDistancia(),
@@ -361,7 +363,8 @@ public final class PainelStatus {
             case SALVAMENTO_ASSINCRONO -> m("{} arquivo(s) gravado(s) em outra thread, {} no thread principal, {} falha(s) regravada(s) depois.",
                     num(Estatisticas.SALVAMENTO_ASSINCRONOS.get()), num(Estatisticas.SALVAMENTO_SINCRONOS.get()), num(Estatisticas.SALVAMENTO_FALHAS.get()))
                     + (Estatisticas.SALVAMENTO_CLASSES_SINCRONAS.isEmpty() ? ""
-                    : "\n" + m("Classes gravadas no thread principal (save(File) próprio): {}", String.join(", ", Estatisticas.SALVAMENTO_CLASSES_SINCRONAS)));
+                    : "\n" + m("Classes gravadas no thread principal (save(File) próprio): {}", String.join(", ", Estatisticas.SALVAMENTO_CLASSES_SINCRONAS)))
+                    + (Estatisticas.saveProprioPorClasse().isEmpty() ? "" : "\n" + m("Tempo de cada uma: {}", Estatisticas.saveProprioPorClasse()));
             case TOOLTIP_SEGURO -> Estatisticas.TOOLTIP_ITENS.isEmpty() ? m("Nenhum item com linha nula até agora.")
                     : m("Itens corrigidos: {}", String.join(", ", Estatisticas.TOOLTIP_ITENS));
             case DESPAWN_ITENS -> m("Mobs que pegaram itens e continuaram podendo desaparecer, e itens que eles devolveram ao desaparecer.");

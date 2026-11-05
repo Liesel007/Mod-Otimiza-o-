@@ -64,10 +64,15 @@ public abstract class DimensionDataStorageMixin {
             String nome = entrada.getKey();
             File arquivo = this.getDataFile(nome);
             if (hlotimizacao$temSaveProprio(dados.getClass())) {
-                if (dados.isDirty()) {
+                boolean sujo = dados.isDirty();
+                if (sujo) {
                     Estatisticas.SALVAMENTO_SINCRONOS.incrementAndGet();
                 }
+                long inicio = System.nanoTime();
                 dados.save(arquivo);
+                if (sujo) {
+                    Estatisticas.registrarSaveProprio(dados.getClass().getName(), System.nanoTime() - inicio);
+                }
                 continue;
             }
             if (!dados.isDirty()) {
@@ -105,7 +110,7 @@ public abstract class DimensionDataStorageMixin {
             return arquivo.toPath();
         } catch (InvalidPathException e) {
             if (hlotimizacao$avisados.add(nome)) {
-                Config.LOGGER.info("SavedData '{}' tem um nome invalido para gravacao assincrona neste sistema; "
+                Config.LOGGER.debug("SavedData '{}' tem um nome invalido para gravacao assincrona neste sistema; "
                         + "sera salvo do jeito vanilla (sincrono)", nome);
             }
             return null;

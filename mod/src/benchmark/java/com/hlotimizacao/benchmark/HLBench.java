@@ -111,6 +111,7 @@ public class HLBench {
                         .then(Commands.literal("contar_spawner").executes(c -> seguro(c, TesteEntidades::contarSpawner))))
                 .then(Commands.literal("gc").then(Commands.argument("mb", IntegerArgumentType.integer(0))
                         .executes(c -> seguro(c, HLBench::pausaGc))))
+                .then(Commands.literal("gradual").executes(c -> seguro(c, TesteSalvamentoGradual::rodar)))
                 .then(Commands.literal("formigueiro").executes(c -> seguro(c, TesteFormigueiro::rodar))
                         .then(Commands.literal("reduzir").executes(c -> seguro(c, TesteFormigueiro::reduzir))))
                 .then(Commands.literal("itens")
