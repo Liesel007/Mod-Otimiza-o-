@@ -1,0 +1,144 @@
+package com.hlotimizacao.recursos;
+
+import com.hlotimizacao.config.Msg;
+import com.hlotimizacao.config.Config;
+import com.hlotimizacao.config.Modulo;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
+
+/**
+ * Contadores dos modulos, para o resumo ao fechar o mundo e o comando /hlotimizacao status.
+ * Contam desde que o jogo abriu.
+ */
+public final class Estatisticas {
+    public static final AtomicLong DESPAWN_MOBS_LIBERADOS = new AtomicLong();
+    public static final AtomicLong DESPAWN_ITENS_DEVOLVIDOS = new AtomicLong();
+    public static final AtomicLong GPU_FRAMEBUFFERS = new AtomicLong();
+    public static final AtomicLong GPU_TEXTURAS = new AtomicLong();
+    public static final Set<String> TOOLTIP_ITENS = ConcurrentHashMap.newKeySet();
+    public static final AtomicLong SALVAMENTO_ASSINCRONOS = new AtomicLong();
+    public static final AtomicLong SALVAMENTO_SINCRONOS = new AtomicLong();
+    public static final AtomicLong SALVAMENTO_FALHAS = new AtomicLong();
+    public static final Set<String> SALVAMENTO_CLASSES_SINCRONAS = ConcurrentHashMap.newKeySet();
+    public static final AtomicLong LAG_REGISTROS = new AtomicLong();
+    /** Classe com save(File) proprio -> {ns total, gravacoes, maior ns}: para saber qual mod reportar. */
+    private static final Map<String, long[]> SAVE_PROPRIO = new java.util.concurrent.ConcurrentHashMap<>();
+
+    public static void registrarSaveProprio(String classe, long ns) {
+        long[] v = SAVE_PROPRIO.computeIfAbsent(classe, k -> new long[3]);
+        synchronized (v) {
+            v[0] += ns;
+            v[1]++;
+            v[2] = Math.max(v[2], ns);
+        }
+    }
+
+    /** "IPSaveData 1.200 ms (12x, maior 300 ms), ..." das 5 classes que mais gastaram no thread principal. */
+    public static String saveProprioPorClasse() {
+        return SAVE_PROPRIO.entrySet().stream()
+                .sorted((a, b) -> Long.compare(b.getValue()[0], a.getValue()[0]))
+                .limit(5)
+                .map(e -> e.getKey().substring(e.getKey().lastIndexOf('.') + 1) + " " + e.getValue()[0] / 1_000_000 + " ms ("
+                        + e.getValue()[1] + "x, " + Msg.f("maior {} ms", e.getValue()[2] / 1_000_000) + ")")
+                .collect(java.util.stream.Collectors.joining(", "));
+    }
+
+    private Estatisticas() {
+    }
+
+    /** Uma linha por modulo ligado. */
+    public static List<String> resumo() {
+        List<String> linhas = new ArrayList<>();
+        if (Config.ativo(Modulo.DESPAWN_ITENS)) {
+            linhas.add(String.format(Msg.t("despawn_itens: %d mob(s) que pegaram itens continuaram podendo desaparecer; %d item(ns) devolvido(s) ao desaparecer"),
+                    DESPAWN_MOBS_LIBERADOS.get(), DESPAWN_ITENS_DEVOLVIDOS.get()));
+        }
+        if (Config.ativo(Modulo.VAZAMENTO_GPU)) {
+            linhas.add(String.format(Msg.t("vazamento_gpu: %d framebuffer(s) e %d textura(s) esquecidos por mods foram liberados"),
+                    GPU_FRAMEBUFFERS.get(), GPU_TEXTURAS.get()));
+        }
+        if (Config.ativo(Modulo.TOOLTIP_SEGURO)) {
+            linhas.add(String.format(Msg.t("tooltip_seguro: corrigiu tooltips com linha nula em %d item(ns)%s"),
+                    TOOLTIP_ITENS.size(), TOOLTIP_ITENS.isEmpty() ? "" : " " + TOOLTIP_ITENS));
+        }
+        if (Config.ativo(Modulo.SALVAMENTO_ASSINCRONO)) {
+            linhas.add(String.format(Msg.t("salvamento_assincrono: %d arquivo(s) gravado(s) fora do thread principal, %d no thread principal (%d classe(s) sincrona(s)%s), %d falha(s) regravada(s) depois"),
+                    SALVAMENTO_ASSINCRONOS.get(), SALVAMENTO_SINCRONOS.get(), SALVAMENTO_CLASSES_SINCRONAS.size(),
+                    SALVAMENTO_CLASSES_SINCRONAS.isEmpty() ? "" : ": " + String.join(", ", SALVAMENTO_CLASSES_SINCRONAS),
+                    SALVAMENTO_FALHAS.get()));
+            String porClasse = saveProprioPorClasse();
+            if (!porClasse.isEmpty()) {
+                linhas.add(Msg.f("salvamento_assincrono: tempo no thread principal das classes com save(File) proprio: {}", porClasse));
+            }
+        }
+        if (Config.ativo(Modulo.CORRECAO_INFINITY_CHEST)) {
+            linhas.add(String.format(Msg.t("correcao_infinity_chest: %d bau(s) corrigido(s) ao carregar, %d chave(s) consertada(s), %d entrada(s) duplicada(s) somada(s)"),
+                    ChavesInfinityChest.BAUS_CORRIGIDOS.get(), ChavesInfinityChest.CHAVES_CORRIGIDAS.get(), ChavesInfinityChest.ENTRADAS_MESCLADAS.get()));
+        }
+        if (Config.ativo(Modulo.LIMPEZA_ITENS)) {
+            linhas.add(String.format(Msg.t("limpeza_itens: %d limpeza(s), %d item(ns) removido(s)"), LimpezaItens.LIMPEZAS.get(), LimpezaItens.ITENS_REMOVIDOS.get()));
+        }
+        if (Config.ativo(Modulo.ALCANCE_ATIVACAO)) {
+            long pulados = AlcanceAtivacao.TICKS_PULADOS.get();
+            long feitos = AlcanceAtivacao.TICKS_PROCESSADOS_LONGE.get();
+            linhas.add(String.format(Msg.t("alcance_ativacao: %d tick(s) de entidade pulado(s) (%d processado(s) longe dos jogadores)"), pulados, feitos));
+        }
+        if (Config.ativo(Modulo.LIMITE_ENXAME)) {
+            String tipos = LimiteEnxame.porTipo();
+            linhas.add(String.format(Msg.t("limite_enxame: %d spawn(s) bloqueado(s)%s"), LimiteEnxame.BLOQUEADOS.get(),
+                    tipos.isEmpty() ? Msg.t(" (lista vazia: nada a limitar)") : " (" + tipos + ")"));
+        }
+        if (Config.ativo(Modulo.CORRECAO_INFINITY_CHEST) && Insercao.ATALHO_AVARITIA.get() > 0) {
+            linhas.add(String.format(Msg.t("correcao_infinity_chest: %d insercao(oes) no Infinity Chest sem varrer os slots"), Insercao.ATALHO_AVARITIA.get()));
+        }
+        if (Config.ativo(Modulo.INSERCAO_RAPIDA)) {
+            linhas.add(String.format(Msg.t("insercao_rapida: %d insercao(oes) pelo cache, %d varredura(s) completa(s), %d recusada(s) pelo orcamento"),
+                    Insercao.RAPIDAS.get(), Insercao.VARREDURAS.get(), Insercao.RECUSADAS.get()));
+        }
+        if (DiagnosticoAmbiente.arquivosLentos() > 0) {
+            linhas.add(String.format(Msg.t("arquivos que demoraram mais de 500 ms para abrir ao gravar: %d (antivirus?)"), DiagnosticoAmbiente.arquivosLentos()));
+        }
+        if (Config.ativo(Modulo.SALVAMENTO_GRADUAL)) {
+            linhas.add(String.format(Msg.t("salvamento_gradual: %d autosave(s) distribuido(s), %d chunk(s) salvos aos poucos, maior tick gasto salvando %d ms"),
+                    SalvamentoGradual.AUTOSAVES.get(), SalvamentoGradual.CHUNKS.get(), SalvamentoGradual.maiorPassoMs()));
+        }
+        if (Config.ativo(Modulo.MONITOR_GC)) {
+            linhas.add(MonitorGc.resumo());
+        }
+        if (Config.ativo(Modulo.DIAGNOSTICO_LAG)) {
+            linhas.add(String.format(Msg.t("diagnostico_lag: %d travamento(s) registrado(s)"), LAG_REGISTROS.get()));
+        }
+        if (Config.ativo(Modulo.RENDER_ENXAME) && ContadoresCliente.enxameExistentes > 0) {
+            linhas.add(String.format(Msg.t("render_enxame: %d de %d mobs desenhados no ultimo frame"), ContadoresCliente.enxameDesenhadas,
+                    ContadoresCliente.enxameExistentes));
+        }
+        if (Config.ativo(Modulo.DISTANCIA_BLOCK_ENTITIES) && ContadoresCliente.blockEntitiesPulados > 0) {
+            linhas.add(String.format(Msg.t("distancia_block_entities: %d desenho(s) de block entity pulados"), ContadoresCliente.blockEntitiesPulados));
+        }
+        // Ligados sem contador proprio: aparecem para ficar claro que estavam ativos.
+        List<String> semContador = new ArrayList<>();
+        for (Modulo m : List.of(Modulo.GATILHO_INVENTARIO, Modulo.FPS_SEM_FOCO, Modulo.TOASTS_VAZIOS, Modulo.DIAGNOSTICO_INSERCAO,
+                Modulo.RELATORIO_CONFLITOS, Modulo.CORRECAO_FASTASYNCWORLDSAVE, Modulo.DIAGNOSTICO_FPS)) {
+            boolean dedicado = net.minecraftforge.fml.loading.FMLEnvironment.dist == net.minecraftforge.api.distmarker.Dist.DEDICATED_SERVER;
+            if (Config.ativo(m) && !(dedicado && m.soCliente)) { // no servidor dedicado os de cliente nao fazem nada
+                semContador.add(m.chave);
+            }
+        }
+        if (!semContador.isEmpty()) {
+            linhas.add(Msg.f("tambem ligados (sem contador): {}", String.join(", ", semContador)));
+        }
+        return linhas;
+    }
+
+    public static void registrarResumo() {
+        List<String> linhas = resumo();
+        if (!linhas.isEmpty()) {
+            Config.LOGGER.info("Resumo desde que o jogo abriu:\n  {}", String.join("\n  ", linhas));
+        }
+    }
+}

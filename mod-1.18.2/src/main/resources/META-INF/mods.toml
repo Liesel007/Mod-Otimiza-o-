@@ -1,0 +1,30 @@
+modLoader="javafml"
+loaderVersion="${loader_version_range}"
+license="${mod_license}"
+issueTrackerURL="https://github.com/Liesel007/Mod-Otimiza-o-/issues"
+
+[[mods]]
+modId="${mod_id}"
+version="${mod_version}"
+displayName="${mod_name}"
+authors="${mod_authors}"
+description='''${mod_description}'''
+logoFile="hlotimizacao_logo.png"
+displayURL="https://github.com/Liesel007/Mod-Otimiza-o-"
+# O Forge consulta este arquivo e avisa no menu de mods quando sai versao nova (HEAD = branch padrao do repositorio).
+updateJSONURL="https://raw.githubusercontent.com/Liesel007/Mod-Otimiza-o-/HEAD/update.json"
+logoBlur=false
+
+[[dependencies.${mod_id}]]
+    modId="forge"
+    mandatory=true
+    versionRange="${forge_version_range}"
+    ordering="NONE"
+    side="BOTH"
+
+[[dependencies.${mod_id}]]
+    modId="minecraft"
+    mandatory=true
+    versionRange="${minecraft_version_range}"
+    ordering="NONE"
+    side="BOTH"
