@@ -20,10 +20,10 @@ import java.util.stream.Collectors;
 
 /** Verificacoes do relatorio_conflitos que olham so a lista de mods (nao precisam do servidor). */
 public final class VerificadorMods {
-    private static final ArtifactVersion MC = new DefaultArtifactVersion("1.20.1");
+    private static final ArtifactVersion MC = new DefaultArtifactVersion("1.18.2");
 
     /**
-     * Versoes do Minecraft no nome do arquivo. Pega "1.20.1", "1.20", "1.20.x", "1.18x", "mc1.19.4",
+     * Versoes do Minecraft no nome do arquivo. Pega "1.18.2", "1.20", "1.20.x", "1.18x", "mc1.19.4",
      * "1.20.[0-4]". So considera 1.16 a 1.21, para nao confundir com a versao do proprio mod
      * (ex.: "ImmediatelyFast-Forge-1.5.5+1.20.4").
      */
@@ -38,7 +38,7 @@ public final class VerificadorMods {
     public record AnaliseNome(boolean mencionaVersao, boolean compativel, List<String> versoes) {
     }
 
-    /** Analisa o nome do arquivo: ele indica uma versao do Minecraft que inclui a 1.20.1? */
+    /** Analisa o nome do arquivo: ele indica uma versao do Minecraft que inclui a 1.18.2? */
     public static AnaliseNome analisarNome(String nomeArquivo) {
         Matcher m = VERSAO_MC.matcher(nomeArquivo);
         List<int[]> faixas = new ArrayList<>(); // {min_menor, min_patch, max_menor, max_patch, inicio, fim}
@@ -71,11 +71,11 @@ public final class VerificadorMods {
                 faixas.add(new int[]{a[0], a[1], b[2], b[3], a[4], b[5]});
             }
         }
-        boolean compativel = faixas.stream().anyMatch(f -> contem(f, 20, 1));
+        boolean compativel = faixas.stream().anyMatch(f -> contem(f, 18, 2));
         return new AnaliseNome(true, compativel, textos);
     }
 
-    /** Todas as versoes do nome sao exatas e mais novas que 1.20.1 (ex.: "+1.20.4")? */
+    /** Todas as versoes do nome sao exatas e mais novas que 1.18.2 (ex.: "+1.20.4")? */
     static boolean maisNovaQue1201(List<String> versoes) {
         if (versoes.isEmpty()) {
             return false;
@@ -87,7 +87,7 @@ public final class VerificadorMods {
             }
             int menor = Integer.parseInt(partes[1]);
             int patch = Integer.parseInt(partes[2]);
-            if (menor < 20 || (menor == 20 && patch <= 1)) {
+            if (menor < 18 || (menor == 18 && patch <= 2)) {
                 return false;
             }
         }
@@ -114,7 +114,7 @@ public final class VerificadorMods {
 
     /**
      * Arquivos cujo nome sugere outra versao do Minecraft. O Forge ja recusa mods cuja faixa declarada
-     * nao inclui a 1.20.1; por isso so avisa quando o mod nao declara faixa ou declara uma que nao inclui.
+     * nao inclui a 1.18.2; por isso so avisa quando o mod nao declara faixa ou declara uma que nao inclui.
      */
     private static int versoesNoNome(LoadingModList lista) {
         int avisos = 0;
@@ -134,15 +134,15 @@ public final class VerificadorMods {
                     .filter(dep -> "minecraft".equals(dep.getModId()))
                     .anyMatch(dep -> dep.getVersionRange().containsVersion(MC));
             if (declaraCompativel && maisNovaQue1201(analise.versoes())) {
-                Config.LOGGER.warn("[Versao] {}: o arquivo e a versao feita para {} (mais nova que a 1.20.1). O mod declara {} e por isso carrega, "
-                        + "mas pode usar codigo que nao existe na 1.20.1. Procure o arquivo feito para 1.20.1.",
+                Config.LOGGER.warn("[Versao] {}: o arquivo e a versao feita para {} (mais nova que a 1.18.2). O mod declara {} e por isso carrega, "
+                        + "mas pode usar codigo que nao existe na 1.18.2. Procure o arquivo feito para 1.18.2.",
                         nome, analise.versoes(), faixaDeclarada.orElse("?"));
                 Avisos.adicionar(Msg.f("{}: feito para {}", curtoArquivo(nome), String.join("/", analise.versoes())),
-                        Msg.f("{} e o arquivo feito para {}, mais nova que a 1.20.1. O mod declara {} e por isso carrega, mas pode usar codigo que nao existe na 1.20.1. Procure o arquivo feito para 1.20.1.",
+                        Msg.f("{} e o arquivo feito para {}, mais nova que a 1.18.2. O mod declara {} e por isso carrega, mas pode usar codigo que nao existe na 1.18.2. Procure o arquivo feito para 1.18.2.",
                                 nome, analise.versoes(), faixaDeclarada.orElse("?")));
                 avisos++;
             } else if (declaraCompativel) {
-                Config.LOGGER.info("[Versao] {}: o nome indica {}, mas o mod declara {} (inclui 1.20.1). Provavelmente ok.",
+                Config.LOGGER.info("[Versao] {}: o nome indica {}, mas o mod declara {} (inclui 1.18.2). Provavelmente ok.",
                         nome, analise.versoes(), faixaDeclarada.orElse("?"));
             } else {
                 Config.LOGGER.warn("[Versao] {}: o nome indica {} e o mod {}. Pode ser a versao errada do mod.",

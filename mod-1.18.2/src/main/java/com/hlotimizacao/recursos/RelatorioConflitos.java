@@ -32,7 +32,8 @@ public final class RelatorioConflitos {
             // o modo seguro do HLO so protege o codigo do proprio HLO.
             Config.LOGGER.info("[relatorio_conflitos] Neruina instalado: ele trata entidades e blocos que crasham no tick; o modo seguro do HLO cuida so dos modulos do HLO");
         }
-        if (Config.modInstalado("starlight")) {
+        // Porte 1.18.2: no 1.18 o Starlight ainda vale a pena (o motor de luz vanilla so mudou no 1.20); sem aviso.
+        if (false && Config.modInstalado("starlight")) {
             Config.LOGGER.warn("[Aviso] Starlight substitui o motor de luz inteiro, mas na 1.20+ o motor vanilla ja usa o mesmo algoritmo "
                     + "(segundo o proprio autor). Se houver bugs de luz ou conflitos, teste sem ele.");
             Avisos.adicionar(Msg.t("Starlight: redundante na 1.20"),

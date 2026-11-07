@@ -108,13 +108,21 @@ public class HLOtimizacao {
     private static void esperarFastAsyncWorldSave(int segundos) {
         try {
             Class<?> classe = Class.forName("com.fastasyncworldsave.FastAsyncWorldSave");
-            Field campo = classe.getField("threadPool");
-            if (campo.get(null) instanceof ExecutorService executor) {
-                GravadorAssincrono.esperar(executor, "Fast Async World Save", segundos);
-                Config.LOGGER.info("Gravacoes pendentes do Fast Async World Save concluidas");
+            // Porte 1.18.2: a versao do FAWS para 1.18.2 guarda o executor em outro campo; procura qualquer
+            // campo estatico do tipo ExecutorService em vez do nome "threadPool" da versao 1.20.1.
+            for (Field campo : classe.getDeclaredFields()) {
+                if (java.lang.reflect.Modifier.isStatic(campo.getModifiers()) && ExecutorService.class.isAssignableFrom(campo.getType())) {
+                    campo.setAccessible(true);
+                    if (campo.get(null) instanceof ExecutorService executor) {
+                        GravadorAssincrono.esperar(executor, "Fast Async World Save", segundos);
+                        Config.LOGGER.info("Gravacoes pendentes do Fast Async World Save concluidas");
+                        return;
+                    }
+                }
             }
-        } catch (ReflectiveOperationException | LinkageError e) {
-            Config.LOGGER.warn("Nao foi possivel acessar a fila do Fast Async World Save", e);
+            Config.LOGGER.debug("Fast Async World Save sem fila de gravacao conhecida; nada a esperar");
+        } catch (ReflectiveOperationException | LinkageError | RuntimeException e) {
+            Config.LOGGER.debug("Nao foi possivel acessar a fila do Fast Async World Save", e);
         }
     }
 }
