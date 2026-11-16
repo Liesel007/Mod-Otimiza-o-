@@ -107,6 +107,11 @@ public final class Estatisticas {
             linhas.add(String.format(Msg.t("salvamento_gradual: %d autosave(s) distribuido(s), %d chunk(s) salvos aos poucos, maior tick gasto salvando %d ms"),
                     SalvamentoGradual.AUTOSAVES.get(), SalvamentoGradual.CHUNKS.get(), SalvamentoGradual.maiorPassoMs()));
         }
+        if (Config.ativo(Modulo.SALVAMENTO_DIMENSOES_VAZIAS)) {
+            String classes = SalvamentoSeletivo.porClasse();
+            linhas.add(Msg.f("salvamento_dimensoes_vazias: {} dimensao(oes) puladas no total; ultimo salvamento: {}{}", SalvamentoSeletivo.dimensoesPuladas,
+                    SalvamentoSeletivo.dimensoes(), classes.isEmpty() ? "" : "; " + classes));
+        }
         if (Config.ativo(Modulo.MONITOR_GC)) {
             linhas.add(MonitorGc.resumo());
         }

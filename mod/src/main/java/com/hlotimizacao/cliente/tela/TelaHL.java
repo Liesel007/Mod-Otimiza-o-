@@ -109,6 +109,12 @@ public class TelaHL extends Screen {
         String legenda = "";
         /** Teto da escala do grafico (0 = sem teto): um pico de segundos nao achata o resto. */
         float escalaMax;
+        /** Linha tracejada de referencia (50 ms no MSPT; 1024 MB na RAM livre). */
+        float referencia = 50;
+        /** true: valor alto e bom (RAM livre); as cores e a escala mudam. */
+        boolean maiorMelhor;
+        /** Segundos por coluna (1 no MSPT, 5 na RAM livre). */
+        int passoSegundos = 1;
         FormattedCharSequence textoFormatado;
         int altura = LINHA;
         // calculado ao desenhar
@@ -359,6 +365,13 @@ public class TelaHL extends Screen {
             Linha l = texto(t("lag_sessao") + ": " + lag, d.lagRegistros == 0 ? VERDE : BRANCO);
             l.clique = () -> trocarAba(Aba.LAG);
         }
+        if (!d.enxame.isEmpty()) {
+            texto(t("enxame_geral", d.enxame), CINZA);
+        }
+        if (d.limpezaAtiva && d.itensNoChao > 300) {
+            Linha dica = texto("➜ " + t("dica_limpar", PainelStatus.num(d.itensNoChao)), AMARELO);
+            dica.clique = () -> trocarAba(Aba.LIMPEZA);
+        }
         Linha avisos = texto(t("avisos") + ": " + (d.avisos == 0 ? "✔ " + t("nenhum") : "⚠ " + d.avisos + "   (" + t("clique_ver") + ")"),
                 d.avisos == 0 ? VERDE : AMARELO);
         avisos.clique = () -> trocarAba(Aba.AVISOS);
@@ -433,6 +446,11 @@ public class TelaHL extends Screen {
         texto(t("coleta_lixo", p.pausasGc) + (p.pausasGc > 0 ? ", " + t("maior") + " " + PainelStatus.duracao(p.maiorPausaGcMs) : "")
                 + " · -Xms " + (p.xms > 0 ? gb(p.xms) + " GB" : "?") + " / -Xmx " + gb(dados.memMax) + " GB", p.pausasGc > 0 ? AMARELO : CINZA);
         texto(t("memoria_detalhe", gb(dados.memUsada), gb(p.memAlocada), gb(dados.memMax)), CINZA);
+        memoria(p.memoria, p.ramLivre);
+        if (!p.dimensoesSalvamento.isEmpty()) {
+            Linha dims = texto(t("salvamento_dimensoes", p.dimensoesSalvamento), CINZA);
+            dims.dica = List.of(Component.literal(t("salvamento_dimensoes_dica")));
+        }
         if (!p.pausasJvm.isEmpty()) {
             titulo(t("pausas_jvm"));
             boolean listraPausa = false;
@@ -459,6 +477,22 @@ public class TelaHL extends Screen {
         Linha java = texto("Java " + p.java + (p.ajusteGc ? "" : " · GC: " + t("nenhum") + " ⚠"), p.ajusteGc ? CINZA : AMARELO);
         if (!p.ajusteGc) {
             java.dica = List.of(Component.literal(t("dica_gc")));
+        }
+    }
+
+    /** Memoria (usa / reservado / sugerido) e o grafico da RAM livre do sistema. */
+    private void memoria(String resumo, float[] ramLivre) {
+        if (resumo == null || resumo.isEmpty()) {
+            return;
+        }
+        titulo(t("memoria_titulo"));
+        Linha l = texto(resumo, BRANCO);
+        l.dica = List.of(Component.literal(t("memoria_dica")));
+        if (ramLivre.length > 1) {
+            Linha g = grafico(ramLivre, null, t("ram_legenda"));
+            g.referencia = 1024;
+            g.maiorMelhor = true;
+            g.passoSegundos = 5;
         }
     }
 
@@ -533,7 +567,34 @@ public class TelaHL extends Screen {
                 }
             }
         }
+        String memoriaLocal = com.hlotimizacao.recursos.Memoria.resumo();
+        if (memoriaLocal != null) { // memoria deste PC (no multiplayer, diferente da do servidor na aba Desempenho)
+            memoria(memoriaLocal, com.hlotimizacao.recursos.Memoria.historicoRamLivre());
+        }
+        inicializacao();
         sugestoes();
+    }
+
+    /** Top 10 do que atrasou a abertura do jogo (relatorio_inicializacao, lido do log deste cliente). */
+    private void inicializacao() {
+        var top = com.hlotimizacao.recursos.RelatorioInicializacao.top();
+        if (top.isEmpty() && com.hlotimizacao.recursos.RelatorioInicializacao.totalMs < 0) {
+            return;
+        }
+        titulo(t("inicializacao_titulo"));
+        long total = com.hlotimizacao.recursos.RelatorioInicializacao.totalMs;
+        long menu = com.hlotimizacao.recursos.RelatorioInicializacao.menuMs;
+        long jei = com.hlotimizacao.recursos.RelatorioInicializacao.jeiMs;
+        texto(t("inicializacao_resumo", total < 0 ? "?" : PainelStatus.duracao(total), menu < 0 ? "?" : PainelStatus.duracao(menu),
+                jei < 0 ? "?" : PainelStatus.duracao(jei)), BRANCO);
+        boolean listra = false;
+        for (var item : top) {
+            Linha l = texto(item.rotulo(), item.ms() >= 10_000 ? AMARELO : BRANCO);
+            l.texto2 = Component.literal(PainelStatus.duracao(item.ms())).withStyle(st -> st.withColor(CINZA));
+            l.coluna2 = Math.max(150, cw - 70);
+            l.listra = listra;
+            listra = !listra;
+        }
     }
 
     /** "O que pode ser ajustado": so sugestoes, nada e mudado sozinho. */
@@ -1142,11 +1203,12 @@ public class TelaHL extends Screen {
         int gh = 56;
         int topo = y + 3;
         int base = topo + gh;
-        float escala = 100;
+        float escala = l.maiorMelhor ? 2048 : 100;
         for (float v : l.serie) {
             escala = Math.max(escala, v);
         }
-        escala = (float) (Math.ceil(escala / 50) * 50);
+        float degrau = l.maiorMelhor ? 1024 : 50;
+        escala = (float) (Math.ceil(escala / degrau) * degrau);
         if (l.escalaMax > 0) {
             escala = Math.min(escala, l.escalaMax);
         }
@@ -1157,24 +1219,25 @@ public class TelaHL extends Screen {
             int gy = base - gh * i / 4;
             g.fill(gx, gy, gx + gw, gy + 1, 0xFF1F232A);
         }
-        int y50 = base - (int) (gh * 50 / escala);
+        int y50 = base - (int) (gh * Math.min(l.referencia, escala) / escala);
         for (int x = gx; x < gx + gw; x += 4) {
             g.fill(x, y50, x + 2, y50 + 1, 0xFF8A6A2A);
         }
         g.drawString(font, Integer.toString(Math.round(escala)), cx, topo, CINZA_ESCURO, false);
         if (base - y50 >= 10) {
-            g.drawString(font, "50", cx, y50 - 4, CINZA, false);
+            g.drawString(font, Integer.toString(Math.round(l.referencia)), cx, y50 - 4, CINZA, false);
         }
         g.drawString(font, "0", cx, base - 8, CINZA_ESCURO, false);
         int n = l.serie.length;
         // Uma coluna por segundo, alinhado a direita (o mais recente no fim).
-        float largura = (float) gw / Desempenho5min.SEGUNDOS;
+        float largura = (float) gw * l.passoSegundos / Desempenho5min.SEGUNDOS;
         for (int i = 0; i < n; i++) {
             float v = l.serie[i];
             int x1 = gx + gw - (int) ((n - i) * largura);
             int x2 = Math.max(x1 + 1, gx + gw - (int) ((n - i - 1) * largura));
             int altura = Math.max(1, (int) (gh * Math.min(v, escala) / escala));
-            int cor = l.marcas != null && i < l.marcas.length && l.marcas[i] ? 0x5599FF : corMspt(v);
+            int cor = l.marcas != null && i < l.marcas.length && l.marcas[i] ? 0x5599FF
+                    : l.maiorMelhor ? (v < 1024 ? VERMELHO : v < 2048 ? AMARELO : VERDE) : corMspt(v);
             g.fill(x1, base - altura, x2, base, 0xFF000000 | escurecer(cor));
             g.fill(x1, base - altura, x2, base - altura + 1, 0xFF000000 | cor);
         }

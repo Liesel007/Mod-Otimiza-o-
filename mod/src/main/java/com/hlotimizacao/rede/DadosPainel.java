@@ -16,7 +16,7 @@ public final class DadosPainel {
      * (servidor e cliente com versoes diferentes do HLO), e a tela avisa em vez de mostrar lixo.
      * Aumente sempre que mudar escrever/ler.
      */
-    public static final int PROTOCOLO = 4; // 4: pausas da JVM na aba Desempenho (0.4.0)
+    public static final int PROTOCOLO = 5; // 5: memoria sugerida, RAM livre, enxame e salvamento por dimensao (0.5.0)
     public static final int TEXTO_CURTO = 120;
     public static final int TEXTO_LONGO = 600;
 
@@ -49,6 +49,8 @@ public final class DadosPainel {
     public long lagRegistros;
     public long lagPiorMs;
     public String maisCulpado = "";
+    /** limite_enxame durante o jogo: "12 bloqueados (ant: 8, pixie: 4)"; vazio sem o modulo. */
+    public String enxame = "";
     /** Preset ativo (nome no idioma do servidor) e quantidade de mods. */
     public String preset = "";
     public int mods;
@@ -88,6 +90,12 @@ public final class DadosPainel {
         public boolean ajusteGc = true;
         /** Custo do proprio HLO (ms/tick, -1 = ainda medindo). */
         public float custoMs = -1;
+        /** Memoria do servidor: "usa ~3,7 GB, reservado 7,5 GB, sugerido 6 GB (...)"; vazio sem dados. */
+        public String memoria = "";
+        /** RAM livre do sistema (MB) a cada 5 s. */
+        public float[] ramLivre = new float[0];
+        /** salvamento_dimensoes_vazias: "78 dimensoes, 9 ativas, 69 puladas..."; vazio sem o modulo. */
+        public String dimensoesSalvamento = "";
         /** Ultimas pausas da JVM (monitor_gc): "hora · descricao". */
         public List<String> pausasJvm = new ArrayList<>();
         public List<Dimensao> dimensoes = new ArrayList<>();
@@ -167,6 +175,7 @@ public final class DadosPainel {
         buf.writeVarLong(lagPiorMs);
         texto(buf, maisCulpado, 40);
         buf.writeVarInt(avisos);
+        texto(buf, enxame, 200);
         texto(buf, preset, 20);
         buf.writeVarInt(mods);
 
@@ -204,6 +213,12 @@ public final class DadosPainel {
             texto(buf, d.java, 60);
             buf.writeBoolean(d.ajusteGc);
             buf.writeFloat(d.custoMs);
+            texto(buf, d.memoria, 200);
+            buf.writeVarInt(d.ramLivre.length);
+            for (float v : d.ramLivre) {
+                buf.writeFloat(v);
+            }
+            texto(buf, d.dimensoesSalvamento, 200);
             buf.writeVarInt(d.pausasJvm.size());
             for (String p : d.pausasJvm) {
                 texto(buf, p, 200);
@@ -306,6 +321,7 @@ public final class DadosPainel {
         d.lagPiorMs = buf.readVarLong();
         d.maisCulpado = buf.readUtf();
         d.avisos = buf.readVarInt();
+        d.enxame = buf.readUtf();
         d.preset = buf.readUtf();
         d.mods = buf.readVarInt();
 
@@ -338,6 +354,12 @@ public final class DadosPainel {
             p.java = buf.readUtf();
             p.ajusteGc = buf.readBoolean();
             p.custoMs = buf.readFloat();
+            p.memoria = buf.readUtf();
+            p.ramLivre = new float[Math.min(buf.readVarInt(), 600)];
+            for (int i = 0; i < p.ramLivre.length; i++) {
+                p.ramLivre[i] = buf.readFloat();
+            }
+            p.dimensoesSalvamento = buf.readUtf();
             int pausas = buf.readVarInt();
             for (int i = 0; i < pausas; i++) {
                 p.pausasJvm.add(buf.readUtf());

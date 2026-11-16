@@ -20,7 +20,10 @@
     "avaritia.ServerChestMixin",
     "avaritia.ServerChestManagerMixin",
     "salvamentogradual.MinecraftServerSalvarMixin",
-    "salvamentogradual.ChunkMapGradualMixin"
+    "salvamentogradual.ChunkMapGradualMixin",
+    "salvamentovazio.MinecraftServerSeletivoMixin",
+    "salvamentovazio.ServerLevelSeletivoMixin",
+    "salvamentovazio.DimensionDataStorageAcessor"
   ],
   "client": [
     "client.gpuleak.RenderTargetMixin",

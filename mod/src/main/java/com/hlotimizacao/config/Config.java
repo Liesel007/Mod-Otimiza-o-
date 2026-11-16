@@ -64,6 +64,7 @@ public final class Config {
         EDITAVEIS.put("alcance_ativacao.dimensoes_ignoradas", "Dimensoes onde o alcance de ativacao nao age");
         EDITAVEIS.put("limite_enxame.lista", "Limite por tipo na regiao (tipo=numero, separados por virgula)");
         EDITAVEIS.put("limite_enxame.raio_chunks", "Raio da regiao em chunks (1 = o chunk e os 8 vizinhos)");
+        EDITAVEIS.put("limite_enxame.conhecidos", "Usar limites conhecidos para mods de enxame instalados (formigas, pixies) (true/false)");
         EDITAVEIS.put("insercao_rapida.limite_slots", "Inventarios com pelo menos este numero de slots usam a insercao rapida");
         EDITAVEIS.put("insercao_rapida.varreduras_max_por_tick", "Varreduras completas por inventario por tick antes do orcamento recusar (se ligado)");
         EDITAVEIS.put("insercao_rapida.orcamento", "Recusar insercoes alem do limite de varreduras no tick (true/false; teste as maquinas antes)");
@@ -115,7 +116,8 @@ public final class Config {
             Map.entry("limite_enxame.raio_chunks", Espec.numero(0, 4)),
             Map.entry("insercao_rapida.limite_slots", Espec.numero(1, 1_000_000)),
             Map.entry("insercao_rapida.varreduras_max_por_tick", Espec.numero(1, 10_000)),
-            Map.entry("insercao_rapida.orcamento", BOOLEANO));
+            Map.entry("insercao_rapida.orcamento", BOOLEANO),
+            Map.entry("limite_enxame.conhecidos", BOOLEANO));
 
     public static Espec espec(String chave) {
         return ESPECS.getOrDefault(chave, TEXTO);
@@ -213,6 +215,10 @@ public final class Config {
     private static boolean ativacaoProtegerSemJogador = true;
     private static Set<String> ativacaoExcecoesEntidades = Set.of();
     private static volatile int renderEnxameMaximo = 24;
+    /** Mobs que mods criam em grupo (formigueiros, vilas de pixies): limites usados se o pack nao definir outros. */
+    static final Map<String, Integer> LIMITES_CONHECIDOS = Map.of(
+            "chaospersists:ant", 8, "chaospersists:rainbow_ant", 4, "chaospersists:unstable_ant", 4, "chaospersists:red_ant", 4,
+            "iceandfire:pixie", 8);
     private static volatile int salvamentoGradualOrcamentoMs = 10;
     private static volatile int renderEnxameDistancia = 24;
     private static volatile Set<String> renderEnxameLista = Set.of();
@@ -353,6 +359,14 @@ public final class Config {
                 }
             }
         }
+        // Limites conhecidos de mods de enxame: so com o mod instalado e so para tipos que a lista nao define.
+        if (Boolean.parseBoolean(props.getProperty("limite_enxame.conhecidos", "true").trim())) {
+            LIMITES_CONHECIDOS.forEach((tipo, limite) -> {
+                if (modInstalado(tipo.substring(0, tipo.indexOf(':')))) {
+                    limites.putIfAbsent(tipo, limite);
+                }
+            });
+        }
         enxameLimites = Map.copyOf(limites);
         enxameRaioChunks = lerInt(props, "limite_enxame.raio_chunks", 1);
         insercaoLimiteSlots = lerInt(props, "insercao_rapida.limite_slots", 54);
@@ -403,6 +417,7 @@ public final class Config {
                 {"distancia_block_entities.excecoes", BE_EXCECOES_PADRAO},
                 {"limite_enxame.lista", ENXAME_PADRAO},
                 {"limite_enxame.raio_chunks", "1"},
+                {"limite_enxame.conhecidos", "true"},
                 {"insercao_rapida.limite_slots", "54"},
                 {"insercao_rapida.varreduras_max_por_tick", "4"},
                 {"insercao_rapida.orcamento", "false"},
@@ -840,7 +855,9 @@ public final class Config {
         sb.append('\n').append(Msg.t("# limite_enxame: spawn natural, de geracao de chunk e de spawner e cancelado quando ja ha 'numero' entidades daquele\n"));
         sb.append(Msg.t("# tipo no chunk e nos vizinhos ate raio_chunks. Nunca vale para ovo, comando ou balde, e nunca remove entidades.\n"));
         sb.append("limite_enxame.lista=").append(props.getProperty("limite_enxame.lista")).append('\n');
-        sb.append("limite_enxame.raio_chunks=").append(props.getProperty("limite_enxame.raio_chunks")).append("\n\n");
+        sb.append("limite_enxame.raio_chunks=").append(props.getProperty("limite_enxame.raio_chunks")).append('\n');
+        sb.append(Msg.t("# conhecidos=true: com Chaos Persists ou Ice and Fire instalados, usa limites conhecidos para as formigas e as pixies (a lista acima tem prioridade).\n"));
+        sb.append("limite_enxame.conhecidos=").append(props.getProperty("limite_enxame.conhecidos")).append("\n\n");
         sb.append(Msg.t("# insercao_rapida (modulo desligado por padrao): inventarios com limite_slots ou mais usam um cache de onde o item\n"));
         sb.append(Msg.t("# coube; orcamento=true recusa a insercao (a maquina tenta no proximo tick) depois de varreduras_max_por_tick varreduras.\n"));
         for (String chave : new String[]{"limite_slots", "varreduras_max_por_tick", "orcamento", "ignorar"}) {

@@ -74,6 +74,9 @@ public final class ColetorStatus {
         List<Avisos.Aviso> avisos = PainelStatus.todosOsAvisos();
         d.avisos = avisos.size();
         d.preset = Config.preset().nome();
+        if (Config.ativo(Modulo.LIMITE_ENXAME) && !Config.enxameLimites().isEmpty()) {
+            d.enxame = Msg.f("{} bloqueados ({})", com.hlotimizacao.recursos.LimiteEnxame.BLOQUEADOS.get(), com.hlotimizacao.recursos.LimiteEnxame.porTipo());
+        }
         d.mods = Config.modsCarregados();
 
         switch (aba) {
@@ -134,6 +137,12 @@ public final class ColetorStatus {
         p.java = v.feature() + "." + v.interim() + "." + v.update() + " (" + System.getProperty("java.vendor", "?") + ")";
         p.ajusteGc = DiagnosticoAmbiente.temAjusteGc();
         p.custoMs = (float) com.hlotimizacao.recursos.Custo.msPorTick();
+        String memoria = com.hlotimizacao.recursos.Memoria.resumo();
+        p.memoria = memoria == null ? "" : memoria;
+        p.ramLivre = com.hlotimizacao.recursos.Memoria.historicoRamLivre();
+        if (Config.ativo(Modulo.SALVAMENTO_DIMENSOES_VAZIAS)) {
+            p.dimensoesSalvamento = com.hlotimizacao.recursos.SalvamentoSeletivo.dimensoes();
+        }
         for (com.hlotimizacao.recursos.MonitorGc.Pausa pausa : com.hlotimizacao.recursos.MonitorGc.ultimas(5)) {
             p.pausasJvm.add(java.time.Instant.ofEpochMilli(pausa.fimMs()).atZone(java.time.ZoneId.systemDefault()).toLocalTime().format(HORA)
                     + " · " + pausa.descricao());

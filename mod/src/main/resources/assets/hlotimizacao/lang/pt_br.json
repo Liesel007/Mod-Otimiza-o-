@@ -123,5 +123,14 @@
   "hlotimizacao.tela.ajuste_chunky": "Pré-gerar o mundo com o Chunky (já instalado)",
   "hlotimizacao.tela.ajuste_chunky_dica": "Gerar chunks novos enquanto explora disputa a CPU com o render. Rode /chunky radius 3000 e depois /chunky start (cerca de 140 mil chunks; numa CPU de 4 núcleos pode levar perto de 1 hora; /chunky pause interrompe).",
   "hlotimizacao.tela.ajuste_jei": "O JEI levou %s s para abrir: veja a aba Avisos",
-  "hlotimizacao.tela.ajuste_jei_dica": "tooltipSearchMode = DISABLED em config/jei/jei-client.ini pula a montagem do índice de tooltips de todos os itens."
+  "hlotimizacao.tela.ajuste_jei_dica": "tooltipSearchMode = DISABLED em config/jei/jei-client.ini pula a montagem do índice de tooltips de todos os itens.",
+  "hlotimizacao.tela.memoria_titulo": "Memória",
+  "hlotimizacao.tela.memoria_dica": "O uso real é o heap logo depois das coletas completas ou mistas (o conjunto vivo). -Xmx sugerido = uso real × 1,6, arredondado para cima em 512 MB, no mínimo 4 GB, no máximo 50% da RAM com placa integrada (65% sem). O HLO nunca muda os argumentos da JVM.",
+  "hlotimizacao.tela.ram_legenda": "RAM livre do sistema (MB) a cada 5 s · tracejado: 1 GB",
+  "hlotimizacao.tela.salvamento_dimensoes": "Salvamento: %s",
+  "hlotimizacao.tela.salvamento_dimensoes_dica": "salvamento_dimensoes_vazias: no autosave e na pausa, dimensões sem jogador e sem chunks carregados são puladas e dados de mod que não mudaram não são regravados. Fechar o mundo e /save-all gravam tudo.",
+  "hlotimizacao.tela.enxame_geral": "Limite de enxame: %s",
+  "hlotimizacao.tela.dica_limpar": "%s itens no chão: use /hl limpar (ou a aba Limpeza)",
+  "hlotimizacao.tela.inicializacao_titulo": "Abertura do jogo (do log desta sessão)",
+  "hlotimizacao.tela.inicializacao_resumo": "Total %s · menu até o mundo %s · JEI %s"
 }

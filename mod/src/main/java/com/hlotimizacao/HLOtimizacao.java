@@ -54,6 +54,9 @@ public class HLOtimizacao {
             ModoSeguro.ouvir(Modulo.RELATORIO_CONFLITOS, TickEvent.ServerTickEvent.class, com.hlotimizacao.recursos.DimensoesPesadas::aoTick);
         }
         ModoSeguro.ouvir(null, LevelEvent.Save.class, Desempenho::aoSalvar);
+        if (Config.ativo(Modulo.SALVAMENTO_DIMENSOES_VAZIAS)) {
+            ModoSeguro.ouvir(Modulo.SALVAMENTO_DIMENSOES_VAZIAS, TickEvent.ServerTickEvent.class, com.hlotimizacao.recursos.SalvamentoSeletivo::aoTick);
+        }
         if (Config.ativo(Modulo.SALVAMENTO_GRADUAL)) {
             ModoSeguro.ouvir(Modulo.SALVAMENTO_GRADUAL, TickEvent.ServerTickEvent.class, com.hlotimizacao.recursos.SalvamentoGradual::aoTick);
         }

@@ -36,6 +36,17 @@ public final class EventosCliente {
                 }
             });
         }
+        if (Config.ativo(Modulo.RELATORIO_INICIALIZACAO)) {
+            // 20 s depois de entrar no mundo (o ModernFix escreve o tempo total 10 frames depois da entrada).
+            int[] espera = {-1};
+            MinecraftForge.EVENT_BUS.addListener((net.minecraftforge.client.event.ClientPlayerNetworkEvent.LoggingIn event) -> espera[0] = 400);
+            MinecraftForge.EVENT_BUS.addListener((TickEvent.ClientTickEvent event) -> {
+                if (event.phase == TickEvent.Phase.END && espera[0] > 0 && --espera[0] == 0) {
+                    com.hlotimizacao.recursos.RelatorioInicializacao.lerEmSegundoPlano(
+                            net.minecraftforge.fml.loading.FMLPaths.GAMEDIR.get().resolve("logs").resolve("latest.log"));
+                }
+            });
+        }
         if (Config.ativo(Modulo.TOOLTIP_SEGURO)) {
             TooltipSeguro.registrar();
         }

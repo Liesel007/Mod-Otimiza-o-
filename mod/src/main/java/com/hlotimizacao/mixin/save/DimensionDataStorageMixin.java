@@ -65,6 +65,11 @@ public abstract class DimensionDataStorageMixin {
             File arquivo = this.getDataFile(nome);
             if (hlotimizacao$temSaveProprio(dados.getClass())) {
                 boolean sujo = dados.isDirty();
+                if (sujo && Config.ativo(com.hlotimizacao.config.Modulo.SALVAMENTO_DIMENSOES_VAZIAS)
+                        && com.hlotimizacao.recursos.SalvamentoSeletivo.semMudanca(arquivo.getPath(), dados.getClass().getName(), dados.save(new CompoundTag()))) {
+                    dados.setDirty(false); // conteudo igual ao da ultima gravacao: o save(File) do mod nao precisa rodar
+                    continue;
+                }
                 if (sujo) {
                     Estatisticas.SALVAMENTO_SINCRONOS.incrementAndGet();
                 }
@@ -97,6 +102,9 @@ public abstract class DimensionDataStorageMixin {
             }
             NbtUtils.addCurrentDataVersion(tag);
             dados.setDirty(false);
+            if (com.hlotimizacao.recursos.SalvamentoSeletivo.semMudanca(caminho.toString(), dados.getClass().getName(), tag)) {
+                continue; // igual a ultima gravacao: nao manda para o disco
+            }
             Estatisticas.SALVAMENTO_ASSINCRONOS.incrementAndGet();
             GravadorAssincrono.gravar(tag, caminho, nome, hlotimizacao$remarcarSujo(dados));
         }

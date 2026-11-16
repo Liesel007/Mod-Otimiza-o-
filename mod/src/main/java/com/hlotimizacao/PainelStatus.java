@@ -341,6 +341,10 @@ public final class PainelStatus {
             case ALCANCE_ATIVACAO -> m("{} ticks pulados", num(com.hlotimizacao.recursos.AlcanceAtivacao.TICKS_PULADOS.get()));
             case LIMITE_ENXAME -> m("{} spawns bloqueados", num(com.hlotimizacao.recursos.LimiteEnxame.BLOQUEADOS.get()));
             case DIAGNOSTICO_INSERCAO -> m("ativo nos travamentos");
+            case RELATORIO_INICIALIZACAO -> com.hlotimizacao.recursos.RelatorioInicializacao.totalMs < 0 ? m("ativo")
+                    : m("abertura {} s", num(com.hlotimizacao.recursos.RelatorioInicializacao.totalMs / 1000));
+            case SALVAMENTO_DIMENSOES_VAZIAS -> m("{} puladas · {}", num(com.hlotimizacao.recursos.SalvamentoSeletivo.dimensoesPuladas),
+                    com.hlotimizacao.recursos.SalvamentoSeletivo.dimensoes());
             case SALVAMENTO_GRADUAL -> m("{} autosaves · {} chunks", num(com.hlotimizacao.recursos.SalvamentoGradual.AUTOSAVES.get()),
                     num(com.hlotimizacao.recursos.SalvamentoGradual.CHUNKS.get()));
             case RENDER_ENXAME -> m("{} de {} mobs desenhados", num(com.hlotimizacao.recursos.ContadoresCliente.enxameDesenhadas),
@@ -379,6 +383,8 @@ public final class PainelStatus {
                     + (com.hlotimizacao.recursos.LimiteEnxame.porTipo().isEmpty() ? "" : " (" + com.hlotimizacao.recursos.LimiteEnxame.porTipo() + ")")
                     + "\n" + m("Limites: {}", Config.enxameLimites());
             case DIAGNOSTICO_FPS -> com.hlotimizacao.recursos.DiagnosticoFps.resumo();
+            case SALVAMENTO_DIMENSOES_VAZIAS -> com.hlotimizacao.recursos.SalvamentoSeletivo.dimensoes()
+                    + (com.hlotimizacao.recursos.SalvamentoSeletivo.porClasse().isEmpty() ? "" : "\n" + com.hlotimizacao.recursos.SalvamentoSeletivo.porClasse());
             case RENDER_ENXAME -> m("Desenhados {} de {} mobs no ultimo frame. Por tipo (existentes/escondidos): {}",
                     num(com.hlotimizacao.recursos.ContadoresCliente.enxameDesenhadas), num(com.hlotimizacao.recursos.ContadoresCliente.enxameExistentes),
                     com.hlotimizacao.recursos.ContadoresCliente.enxamePorTipo.entrySet().stream().map(e -> e.getKey() + " " + e.getValue()[0] + "/" + e.getValue()[1])

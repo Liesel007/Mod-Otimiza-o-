@@ -61,6 +61,8 @@ public final class MonitorGc {
     public static final AtomicInteger PAUSAS_COMPLETAS = new AtomicInteger();
     public static final AtomicInteger GC_EXPLICITOS = new AtomicInteger();
     public static final AtomicInteger SOLUCOS = new AtomicInteger();
+    public static final AtomicInteger YOUNG_LONGAS = new AtomicInteger();
+    public static volatile String origemDiagnostico = "";
     private static volatile long maiorMs;
     private static volatile String maiorDescricao = "";
     private static long ultimoLogSolucoMs;
@@ -109,6 +111,29 @@ public final class MonitorGc {
         }
         long ms = info.getGcInfo().getDuration();
         Desempenho.registrarPausaGc(ms);
+        // Uso real da memoria (Memoria): heap depois de coletas completas ou mistas (a geracao velha diminuiu).
+        long antesTotal = 0;
+        long depoisTotal = 0;
+        long velhaAntes = 0;
+        long velhaDepois = 0;
+        for (Map.Entry<String, MemoryUsage> e : info.getGcInfo().getMemoryUsageBeforeGc().entrySet()) {
+            antesTotal += e.getValue().getUsed();
+            if (e.getKey().contains("Old") || e.getKey().contains("Tenured")) {
+                velhaAntes += e.getValue().getUsed();
+            }
+        }
+        for (Map.Entry<String, MemoryUsage> e : info.getGcInfo().getMemoryUsageAfterGc().entrySet()) {
+            depoisTotal += e.getValue().getUsed();
+            if (e.getKey().contains("Old") || e.getKey().contains("Tenured")) {
+                velhaDepois += e.getValue().getUsed();
+            }
+        }
+        boolean completaOuMista = info.getGcAction().contains("major") || nome.contains("Old") || nome.contains("MarkSweep") || velhaDepois < velhaAntes;
+        Memoria.aposColeta(completaOuMista, depoisTotal >> 20, System.currentTimeMillis());
+        String causa = info.getGcCause();
+        if (Config.ativo(Modulo.MONITOR_GC) && (causa.contains("Diagnostic Command") || causa.contains("Heap Inspection"))) {
+            origemDiagnostico(ms, causa);
+        }
         boolean explicito = info.getGcCause().contains("System.gc");
         if (explicito) {
             GC_EXPLICITOS.incrementAndGet();
@@ -136,7 +161,14 @@ public final class MonitorGc {
         if (!Config.ativo(Modulo.MONITOR_GC)) {
             return;
         }
-        if (ms >= LOGAR_MS) {
+        long maximo = Runtime.getRuntime().maxMemory();
+        if (!completa && ms >= 1000 && antes < maximo * 0.8) {
+            // Coleta Young de segundos com o heap longe de cheio: o tempo foi o sistema trazendo o heap de volta do disco.
+            YOUNG_LONGAS.incrementAndGet();
+            String sugestao = Memoria.sugestaoCurta();
+            Config.LOGGER.warn("[monitor_gc] Coleta Young levou {} ms: e o sistema paginando o heap para o disco, nao um problema do GC. Reduza o -Xmx (sugerido: {}) ou feche outros programas.",
+                    ms, sugestao == null ? "?" : sugestao);
+        } else if (ms >= LOGAR_MS) {
             Config.LOGGER.warn("[monitor_gc] Pausa de {} ms: {}, causa: {}, heap {} MB -> {} MB", ms, coletor, info.getGcCause(), antes >> 20, depois >> 20);
         }
         atualizarAvisos();
@@ -164,6 +196,7 @@ public final class MonitorGc {
                 return;
             }
             long agora = System.nanoTime();
+            Memoria.amostrarRam(System.currentTimeMillis());
             long extraMs = (agora - anterior) / 1_000_000 - DORMIR_MS;
             anterior = agora;
             if (extraMs >= SOLUCO_MS) {
@@ -178,8 +211,10 @@ public final class MonitorGc {
                 anterior = System.nanoTime();
                 if (pausaGcEntre(inicio - 50, fim + 50) == null) {
                     SOLUCOS.incrementAndGet();
+                    Memoria.aoCongelar();
                     Pausa p = new Pausa(inicio, fim, false, "", "", 0, 0);
                     guardar(p);
+                    atualizarAvisos();
                     if (fim - ultimoLogSolucoMs >= 30_000) {
                         ultimoLogSolucoMs = fim;
                         Config.LOGGER.warn("[monitor_gc] Processo inteiro congelado por {} ms sem coleta de lixo: o sistema operacional parou a JVM (troca de memoria com o disco, antivirus ou economia de energia)", extraMs);
@@ -257,10 +292,19 @@ public final class MonitorGc {
             + "-XX:InitiatingHeapOccupancyPercent=15 -XX:+AlwaysPreTouch";
 
     private static void atualizarAvisos() {
+        long[] uso = Memoria.usoReal();
+        long reservado = Runtime.getRuntime().maxMemory() >> 20;
+        if (uso[0] > 0 && (SOLUCOS.get() > 0 || YOUNG_LONGAS.get() > 0) && reservado > Memoria.sugeridoMb(uso[0]) + 512) {
+            Avisos.substituir("monitor_gc:xmx", Msg.f("RAM: -Xmx {} GB, sugerido {}", Math.round(reservado / 102.4) / 10.0, Memoria.sugestaoCurta()),
+                    Msg.f("O jogo usa de verdade ~{} MB (medido depois das coletas), mas reserva {} MB. Com o sistema congelando o processo ({} vez(es)) e coletas Young longas ({}), o heap grande esta sendo paginado para o disco. "
+                            + "Sugestao: -Xmx{}M nos argumentos da JVM (no CurseForge: Configuracoes > Minecraft > memoria). {}",
+                            uso[0], reservado, SOLUCOS.get(), YOUNG_LONGAS.get(), Memoria.sugeridoMb(uso[0]), Memoria.resumo()));
+        }
         if (GC_EXPLICITOS.get() >= 2) {
             Avisos.substituir("monitor_gc:explicito", Msg.f("GC: {} coleta(s) pedida(s) por System.gc()", GC_EXPLICITOS.get()),
                     Msg.t("Algum mod pede coleta de lixo manual (System.gc()), que para o jogo inteiro. Causa classica de travada no carregamento. "
-                            + "Sugestao: acrescente -XX:+DisableExplicitGC aos argumentos da JVM (no CurseForge: Configuracoes > Minecraft > argumentos da JVM)."));
+                            + "Sugestao: acrescente -XX:+DisableExplicitGC aos argumentos da JVM (no CurseForge: Configuracoes > Minecraft > argumentos da JVM). "
+                            + "O AllTheLeaks contorna essa opcao ao fechar o mundo (usa a API de diagnostico), entao essa coleta continua."));
         }
         if (PAUSAS_COMPLETAS.get() >= 1 || maiorMs >= 1000) {
             Avisos.substituir("monitor_gc:g1", Msg.f("GC: {} coleta(s) completa(s), maior pausa {} ms", PAUSAS_COMPLETAS.get(), maiorMs),
@@ -307,7 +351,66 @@ public final class MonitorGc {
 
     /** Linha do resumo ao fechar. */
     public static String resumo() {
-        return String.format(Msg.t("monitor_gc: %d pausa(s) de GC >= 100 ms (%d completa(s), %d por System.gc()), %d congelamento(s) do processo sem GC, maior pausa %d ms"),
+        String texto = String.format(Msg.t("monitor_gc: %d pausa(s) de GC >= 100 ms (%d completa(s), %d por System.gc()), %d congelamento(s) do processo sem GC, maior pausa %d ms"),
                 PAUSAS_GC.get(), PAUSAS_COMPLETAS.get(), GC_EXPLICITOS.get(), SOLUCOS.get(), maiorMs);
+        if (SOLUCOS.get() > 0 && Memoria.ramLivreMb() >= 0) {
+            texto += Msg.f("; {} de {} congelamentos com a RAM livre do sistema abaixo de 1 GB", Memoria.congelamentosComRamBaixa, SOLUCOS.get());
+        }
+        String memoria = Memoria.resumo();
+        if (memoria != null) {
+            texto += "\n  " + Msg.f("monitor_gc: memoria: {}", memoria);
+        }
+        return texto;
+    }
+
+    /**
+     * Coleta completa pedida pela API de diagnostico (DiagnosticCommand GC.run, histograma, heap dump): procura quem
+     * pediu nas pilhas de todas as threads que nao estao esperando. A coleta ja terminou quando a notificacao chega,
+     * entao quem pediu pode ja ter saido; nesse caso, so o AllTheLeaks instalado e indicado como provavel.
+     */
+    private static void origemDiagnostico(long ms, String causa) {
+        String mod = null;
+        String onde = null;
+        for (Map.Entry<Thread, StackTraceElement[]> e : Thread.getAllStackTraces().entrySet()) {
+            Thread.State estado = e.getKey().getState();
+            if (e.getKey() == Thread.currentThread() || estado == Thread.State.WAITING || estado == Thread.State.TIMED_WAITING) {
+                continue;
+            }
+            boolean diagnostico = false;
+            for (StackTraceElement f : e.getValue()) {
+                String c = f.getClassName();
+                if (c.contains("DiagnosticCommand") || c.contains("HotSpotDiagnostic") || f.getMethodName().equals("gcRun")) {
+                    diagnostico = true;
+                    continue;
+                }
+                if (diagnostico) {
+                    String m = DiagnosticoLag.modDoModulo(f.getModuleName());
+                    if (m != null) {
+                        mod = m;
+                        onde = c.substring(c.lastIndexOf('.') + 1) + "." + f.getMethodName();
+                        break;
+                    }
+                }
+            }
+            if (mod != null) {
+                break;
+            }
+        }
+        boolean atl = net.minecraftforge.fml.loading.LoadingModList.get() != null
+                && net.minecraftforge.fml.loading.LoadingModList.get().getModFileById("alltheleaks") != null;
+        if (mod != null) {
+            origemDiagnostico = mod + " (" + onde + ")";
+            Config.LOGGER.warn("[monitor_gc] Coleta completa de {} ms pedida pela API de diagnostico por {} ({}), causa: {}", ms, mod, onde, causa);
+        } else {
+            origemDiagnostico = atl ? Msg.t("provavelmente o AllTheLeaks") : "?";
+            Config.LOGGER.warn("[monitor_gc] Coleta completa de {} ms pedida pela API de diagnostico ({}); quem pediu ja tinha terminado. {}", ms, causa,
+                    atl ? Msg.t("Provavelmente o AllTheLeaks, que faz isso ao parar o servidor.") : "");
+        }
+        if (atl && (mod == null || mod.equals("alltheleaks"))) {
+            Avisos.substituir("monitor_gc:atl", Msg.f("AllTheLeaks: coleta completa forcada de {} ms ao fechar o mundo", ms),
+                    Msg.t("O AllTheLeaks (1.20.1) forca uma coleta completa toda vez que o servidor para (ServerStoppedEvent), e com -XX:+DisableExplicitGC ele usa a API de diagnostico (GC.run) para contornar a opcao. "
+                            + "A config dele (memoryUsageWarningPercentage, logIntervalInMinutes...) nao tem opcao que desligue isso. A pausa fica longa quando o heap foi paginado para o disco: "
+                            + "o remedio e o -Xmx sugerido pelo monitor_gc. Se continuar, vale reportar ao autor do AllTheLeaks."));
+        }
     }
 }
