@@ -1069,7 +1069,15 @@ final class MensagensEn {
             Map.entry("# conhecidos=true: com Chaos Persists ou Ice and Fire instalados, usa limites conhecidos para as formigas e as pixies (a lista acima tem prioridade).\n",
                     "# conhecidos=true: with Chaos Persists or Ice and Fire installed, uses known limits for ants and pixies (the list above wins).\n"),
             Map.entry("abertura {} s",
-                    "startup {} s"));
+                    "startup {} s"),
+            Map.entry("provavelmente {}",
+                    "probably {}"),
+            Map.entry("[monitor_gc] Coleta completa de {} ms pedida pela API de diagnostico ({}); quem pediu ja tinha saido da chamada, provavelmente {}{}",
+                    "[monitor_gc] Full GC of {} ms requested through the diagnostic API ({}); the caller had already left the call, probably {}{}"),
+            Map.entry("(o AllTheLeaks tambem faz isso ao parar o servidor)",
+                    "(AllTheLeaks also does this when the server stops)"),
+            Map.entry("nenhum autosave ou pausa ainda",
+                    "no autosave or pause yet"));
 
     private MensagensEn() {
     }

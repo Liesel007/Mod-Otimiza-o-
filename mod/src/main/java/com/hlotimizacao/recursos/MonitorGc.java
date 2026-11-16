@@ -396,11 +396,37 @@ public final class MonitorGc {
                 break;
             }
         }
+        // 2. Ninguem mais dentro da API: threads em execucao com codigo de mod perto do topo (provavel quem pediu e seguiu).
+        String provavel = null;
+        if (mod == null) {
+            for (Map.Entry<Thread, StackTraceElement[]> e : Thread.getAllStackTraces().entrySet()) {
+                Thread th = e.getKey();
+                if (th == Thread.currentThread() || th.getName().startsWith("HLO") || th.getState() != Thread.State.RUNNABLE) {
+                    continue;
+                }
+                StackTraceElement[] pilha = e.getValue();
+                for (int i = 0; i < Math.min(12, pilha.length); i++) {
+                    String m = DiagnosticoLag.modDoModulo(pilha[i].getModuleName());
+                    if (m != null && !m.equals("hlotimizacao")) {
+                        String c = pilha[i].getClassName();
+                        provavel = m + " (" + c.substring(c.lastIndexOf('.') + 1) + "." + pilha[i].getMethodName() + ", " + th.getName() + ")";
+                        break;
+                    }
+                }
+                if (provavel != null) {
+                    break;
+                }
+            }
+        }
         boolean atl = net.minecraftforge.fml.loading.LoadingModList.get() != null
                 && net.minecraftforge.fml.loading.LoadingModList.get().getModFileById("alltheleaks") != null;
         if (mod != null) {
             origemDiagnostico = mod + " (" + onde + ")";
             Config.LOGGER.warn("[monitor_gc] Coleta completa de {} ms pedida pela API de diagnostico por {} ({}), causa: {}", ms, mod, onde, causa);
+        } else if (provavel != null) {
+            origemDiagnostico = Msg.f("provavelmente {}", provavel);
+            Config.LOGGER.warn("[monitor_gc] Coleta completa de {} ms pedida pela API de diagnostico ({}); quem pediu ja tinha saido da chamada, provavelmente {}{}", ms, causa, provavel,
+                    atl ? " " + Msg.t("(o AllTheLeaks tambem faz isso ao parar o servidor)") : "");
         } else {
             origemDiagnostico = atl ? Msg.t("provavelmente o AllTheLeaks") : "?";
             Config.LOGGER.warn("[monitor_gc] Coleta completa de {} ms pedida pela API de diagnostico ({}); quem pediu ja tinha terminado. {}", ms, causa,

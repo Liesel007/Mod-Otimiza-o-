@@ -151,6 +151,9 @@ public final class SalvamentoSeletivo {
 
     /** "78 dimensoes, 9 ativas, 69 puladas no ultimo salvamento" */
     public static String dimensoes() {
+        if (dimensoesUltimo == 0) {
+            return Msg.t("nenhum autosave ou pausa ainda");
+        }
         return Msg.f("{} dimensoes, {} ativas, {} puladas no ultimo salvamento", dimensoesUltimo, dimensoesUltimo - puladasUltimo, puladasUltimo);
     }
 }

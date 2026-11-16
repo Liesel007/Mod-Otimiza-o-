@@ -3,6 +3,24 @@
 HLO: HL Optimization, for Forge 1.20.1. The detailed notes (in Portuguese, with test results) are in
 [`mod/README.md`](mod/README.md#histórico-de-versões).
 
+## 0.5.0
+
+- **Memory suggestion from data** (`monitor_gc`): real use (heap after full/mixed collections), reserved `-Xmx` and a
+  suggested `-Xmx` (real use x 1.6, rounded up to 512 MB, min 4 GB, max 50% of RAM with integrated graphics or 65%
+  without), plus a system free RAM graph. Long Young pauses are reported as OS paging. Text only: HLO never changes JVM
+  arguments.
+- Full GCs from the diagnostic API name the likely caller. AllTheLeaks 1.20.1 forces one on every server stop, even
+  with `-XX:+DisableExplicitGC`, and has no option to turn it off (checked in its source).
+- **New `salvamento_dimensoes_vazias`** (server): on autosave and pause, unchanged mod data (CRC32 of the NBT) is not
+  rewritten and dimensions with no player and no loaded chunks are skipped (never the overworld). Closing the world and
+  `/save-all` save everything. Test: pause save 492 -> 27 ms.
+- **New `relatorio_inicializacao`** (client): top 10 of what slowed startup (ModernFix model events per mod, JEI
+  plugins), read from the session log, with suggestions.
+- Known swarm limits for Chaos Persists ants and Ice and Fire pixies when those mods are installed (the pack's list
+  wins). Swarm counts and a ground-items hint on the overview.
+- Log format: existing prefixes and lines unchanged; new `[monitor_gc]` lines (free RAM, Young paging, diagnostic GC)
+  and `[relatorio_inicializacao]`.
+
 ## 0.4.0
 
 Stutter-focused release.

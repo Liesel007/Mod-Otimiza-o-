@@ -29,6 +29,8 @@ that does the same job is already installed, so HLO can be dropped into an exist
 | Swarm rendering | Draws only the nearest mobs of a crowded type (non-hostile by default) | Out Of Sight, RenderLimiter | client |
 | Block entity distance | Stops drawing machine/animated block renderers far away (chests, signs, beacons keep vanilla distance) | Out Of Sight | client |
 | Gradual saving | Spreads the autosave over several ticks so it does not freeze the game | — | server |
+| Idle dimension saving | Skips unchanged mod data and idle dimensions on autosave and pause | — | server |
+| Startup report | Top 10 of what slowed the game startup, from the session log | — | client |
 | Conflict report | Warns about known conflicts and wrong mod versions at startup | — | both |
 | Fixes | Re-Avaritia Infinity Chest key growth and Fast Async World Save shutdown data loss (only on when those mods are installed) | — | — |
 

@@ -29,6 +29,8 @@ sozinho quando já existe um mod que faz o mesmo, então dá para colocar o HLO 
 | Render de enxames | Desenha só os mobs mais próximos de um tipo lotado (só não hostis por padrão) | Out Of Sight, RenderLimiter | cliente |
 | Distância de block entities | Para de desenhar máquinas e blocos animados longe (baús, placas e beacons ficam como no vanilla) | Out Of Sight | cliente |
 | Salvamento gradual | Espalha o autosave por vários ticks para ele não travar o jogo | — | servidor |
+| Salvamento de dimensões paradas | Pula dados de mod que não mudaram e dimensões paradas no autosave e na pausa | — | servidor |
+| Relatório de inicialização | Top 10 do que atrasou a abertura do jogo, a partir do log da sessão | — | cliente |
 | Relatório de conflitos | Avisa na inicialização sobre conflitos conhecidos e versões erradas de mods | — | os dois |
 | Correções | Chaves do Infinity Chest do Re-Avaritia que crescem sem parar e perda de dados ao fechar com o Fast Async World Save (só ligam com esses mods) | — | — |
 

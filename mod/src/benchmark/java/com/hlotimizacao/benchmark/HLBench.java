@@ -113,6 +113,7 @@ public class HLBench {
                         .executes(c -> seguro(c, HLBench::pausaGc))))
                 .then(Commands.literal("dimensoes").then(Commands.literal("pausa").executes(c -> seguro(c, TesteDimensoes::pausa)))
                         .then(Commands.literal("mudar").executes(c -> seguro(c, TesteDimensoes::mudar))))
+                .then(Commands.literal("gc_diagnostico").executes(c -> seguro(c, HLBench::gcDiagnostico)))
                 .then(Commands.literal("memoria").executes(c -> seguro(c, TesteMemoria::memoria)))
                 .then(Commands.literal("inicializacao").executes(c -> seguro(c, TesteMemoria::inicializacao)))
                 .then(Commands.literal("gradual").executes(c -> seguro(c, TesteSalvamentoGradual::rodar)))
@@ -303,6 +304,36 @@ public class HLBench {
         long ms = (System.nanoTime() - inicio) / 1_000_000;
         LOGGER.info("HLBENCH gc pausa_medida={} ms objetos_vivos={}", ms, lixoVivo == null ? 0 : lixoVivo.length);
         return 1;
+    }
+
+    /** Como o AllTheLeaks: GC.run pela API de diagnostico (DiagnosticCommand) e depois segue trabalhando no mesmo metodo. */
+    public interface GcRun {
+        void gcRun();
+    }
+
+    static int gcDiagnostico(CommandContext<CommandSourceStack> ctx) {
+        Thread t = new Thread(() -> {
+            try {
+                var servidor = java.lang.management.ManagementFactory.getPlatformMBeanServer();
+                var nome = javax.management.ObjectName.getInstance("com.sun.management:type=DiagnosticCommand");
+                javax.management.JMX.newMXBeanProxy(servidor, nome, GcRun.class).gcRun();
+                limparDepoisDoGc(); // segue no codigo do mod, como o clearNullReferences do AllTheLeaks
+            } catch (Exception e) {
+                LOGGER.error("HLBENCH gc_diagnostico falhou", e);
+            }
+        }, "HLBench GC.run");
+        t.start();
+        LOGGER.info("HLBENCH gc_diagnostico pedido");
+        return 1;
+    }
+
+    private static void limparDepoisDoGc() {
+        long fim = System.currentTimeMillis() + 1500;
+        long x = 0;
+        while (System.currentTimeMillis() < fim) {
+            x += System.identityHashCode(new Object());
+        }
+        LOGGER.info("HLBENCH gc_diagnostico terminou {}", x == 42);
     }
 
     private static int seguro(CommandContext<CommandSourceStack> ctx, com.mojang.brigadier.Command<CommandSourceStack> comando) {

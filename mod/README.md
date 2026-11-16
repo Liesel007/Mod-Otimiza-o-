@@ -9,7 +9,7 @@ Nome exibido: **HLO: HL Optimization** (o modId continua `hlotimizacao`, para n�
 Licença: [MIT](../LICENSE). Página do projeto (textos para o CurseForge): [`docs/curseforge/`](../docs/curseforge/).
 Mudanças por versão em inglês: [`CHANGELOG.md`](../CHANGELOG.md).
 
-**Jar pronto:** [`releases/hlotimizacao-0.4.0.jar`](../releases/hlotimizacao-0.4.0.jar). Basta colocá-lo
+**Jar pronto:** [`releases/hlotimizacao-0.5.0.jar`](../releases/hlotimizacao-0.5.0.jar). Basta colocá-lo
 na pasta `mods` da instância.
 
 ## Como ele convive com os mods do pack
@@ -108,6 +108,8 @@ o F8 avisa que o servidor não tem o HLO (ou tem outra versão) e o `/hl` em tex
 | `render_enxame` | (próprio) | Out Of Sight, RenderLimiter (modIds `outofsight`, `renderlimiter`: não confirmados) | cliente |
 | `distancia_block_entities` | (próprio) | Out Of Sight, Enhanced Block Entities (modIds não confirmados) | cliente |
 | `salvamento_gradual` | Paper (`max-auto-save-chunks-per-tick`) | — | servidor |
+| `salvamento_dimensoes_vazias` | (próprio) | — | servidor |
+| `relatorio_inicializacao` | (diagnóstico) | — | cliente |
 
 ## Erros dos outros mods que este mod corrige
 
@@ -234,6 +236,73 @@ Teste de antes e depois com números: [`docs/benchmark.md`](../docs/benchmark.md
   e o funcionamento junto com o pack HL completo. Teste num mundo de cópia antes de usar no mundo principal.
 
 ## Histórico de versões
+
+### 0.5.0
+Feita a partir do relatório da sessão de 15/11/2026 (HLO 0.4.0, 425 mods, Intel UHD, 12 GB de RAM, -Xmx 7,5 GB, 78 dimensões).
+
+**1. Memória sugerida a partir de dados (`monitor_gc`)**
+- Uso real: o heap logo depois de cada coleta completa ou **mista** (a geração velha diminuiu); vale o máximo da sessão.
+  Sem nenhuma, o mínimo depois das coletas Young dos últimos 5 min, marcado "estimado".
+- Sugestão: uso × 1,6 arredondado para cima em 512 MB, mínimo 4 GB. Teto: 50% da RAM com placa integrada, 65% sem.
+  O teto é comparado com a necessidade **antes** de arredondar: com os números da sessão (3.725 MB, 12.119 MB de RAM)
+  a necessidade é 5.960 MB, abaixo do teto de 6.060, e a sugestão sai 6 GB (6.144 MB). Arredondar antes de comparar
+  daria 6.144 > 6.060 e marcaria "no limite", o contrário do que o relatório espera. Testado no HLBench com esses valores.
+- RAM livre do sistema a cada 5 s, com gráfico de 5 min nas abas Desempenho e FPS; log uma vez por sessão abaixo de 1 GB
+  (`[monitor_gc] System free RAM below 1 GB (N MB): Windows will start paging the game to disk`); o resumo conta
+  quantos congelamentos aconteceram com a RAM livre baixa.
+- Coleta Young acima de 1 s com o heap abaixo de 80%: `[monitor_gc] Young collection took N ms: this is the OS paging
+  the heap, not a GC problem. Lower -Xmx (suggested: 6 GB) or close other programs.`
+- Painel e resumo: `uses ~3.7 GB, reserved 7.5 GB, suggested 6 GB (RAM 11.8 GB, integrated GPU)`; aviso com o `-Xmx`
+  sugerido quando o reservado passa do sugerido e houve congelamentos ou Young longas.
+
+**2. Coletas completas pela API de diagnóstico**
+- Causa `Diagnostic Command`/`Heap Inspection`: procura nas pilhas quem pediu. Como a notificação chega depois da coleta,
+  quem pediu já saiu da chamada; então primeiro procura uma thread ainda dentro da API, depois a thread em execução com
+  código de mod no topo (marcada "provavelmente"). Teste: um `GC.run` pelo `DiagnosticCommand` (como o AllTheLeaks faz)
+  saiu como `probably hlbench (HLBench.limparDepoisDoGc, thread HLBench GC.run)`.
+- **AllTheLeaks, conferido no código da branch 1.20.1:** ele força uma coleta completa em todo `ServerStoppedEvent`
+  (fechar o mundo) e, com `-XX:+DisableExplicitGC`, contorna a opção usando a API de diagnóstico (`GC.run`). É a pausa de
+  33 s da sessão (com o heap paginado). A config dele (`memoryUsageWarningPercentage`, `logIntervalInMinutes`...) **não
+  tem opção** que desligue isso; o aviso diz isso e aponta o `-Xmx` sugerido. O aviso do `DisableExplicitGC` também avisa.
+
+**3. `salvamento_dimensoes_vazias`** (servidor, novo módulo)
+- No autosave e no salvamento ao pausar: um dado de mod marcado como alterado só é gravado se o CRC32 do NBT mudou
+  desde a última gravação (vale para os `save(File)` próprios, como o `ConduitSavedData`, e para o salvamento assíncrono).
+- Dimensão sem jogador e sem chunks carregados desde o último salvamento, e sem dado alterado de verdade (só classes que
+  já se mostraram "sempre alteradas sem mudar"): o `ServerLevel.save` dela é pulado. O **Overworld nunca é pulado**
+  (dados globais de muitos mods ficam nele).
+- Fechar o mundo, `/save-all` e `/save-all flush` gravam tudo, de todas as dimensões.
+- Teste (3 dimensões, um dado "sempre alterado" de 150 ms por dimensão, imitando o Ender IO): salvamento ao pausar
+  **492 → 31 → 27 ms**; o valor alterado no End sem jogador foi gravado no fechamento. Painel: "N dimensões, X ativas,
+  Y puladas"; resumo: "ConduitSavedData: 300 de 312 gravações puladas".
+- Limitação: o HLO só consegue comparar o NBT do `save(CompoundTag)`. Um mod que gravasse no `save(File)` algo que não
+  está nesse NBT teria a gravação pulada; por isso o fechamento e o `/save-all` sempre gravam.
+
+**4. `relatorio_inicializacao`** (cliente, novo módulo)
+- 20 s depois de entrar no mundo, lê o `logs/latest.log` numa thread de fundo e monta o top 10, com os formatos
+  conferidos no código do ModernFix (`Posting dynamic ModelEvent.ModifyBakingResult ... breakdown`, `Game took`,
+  `Time from main menu`, `Total time to load game`) e do JEI (`Registering recipes: <plugin> took`, `Starting JEI took`).
+  Teste com as linhas da sessão: `ModelEvent.ModifyBakingResult: lantea 16.3 s` no top 10.
+- Avisos: JEI acima de 30 s (sugere `tooltipSearchMode = DISABLED`) e um único mod acima de 10 s numa fase ("candidato a
+  reportar ao autor"; o `jei:minecraft` fica de fora, é o próprio JEI). Aba FPS: seção "Abertura do jogo".
+- O Forge 47 não registra o tempo de cada fase (CONSTRUCT, COMMON_SETUP...) por mod, então essa parte do pedido não dá.
+
+**5. Pré-aquecimento: não feito nesta versão.** O relatório pede para fazer depois do item 1 e medir com a memória
+ajustada, e parte dos picos de "primeira vez" (o MeshImpl do AE2, as texturas animadas) foi paginação. Além disso, ligar
+um pico a um `ResourceLocation` a partir da pilha só funciona em poucos casos. Fica para quando houver uma sessão com o
+`-Xmx` novo.
+
+**6. Ajustes**
+- **Limites conhecidos de enxame** (`limite_enxame.conhecidos=true`): com o Chaos Persists ou o Ice and Fire instalados,
+  usa ant 8, rainbow/unstable/red ant 4 e `iceandfire:pixie` 8, só para tipos que a lista do pack não define. A lista
+  padrão continua vazia (mod genérico).
+- Visão geral do painel: os bloqueios do `limite_enxame` por tipo durante o jogo, e uma dica quando há mais de 300 itens
+  no chão (o comando é o `/hl limpar`, que já existe, com aviso de 10 s e `/hl limpar cancelar`).
+- `updateJSONURL`: continua apontando para o `raw.githubusercontent.com` (o repositório é público e o arquivo responde).
+  Se o repositório ficar privado, ele para de funcionar; nesse caso, mover o `update.json` para um Gist público ou tirar
+  a linha do `mods.toml`.
+- Formato do log: prefixos e linhas `Slow tick:`, `Server stalled for`, `Likely cause:` e `Summary since the game
+  started:` sem mudança; linhas novas `[monitor_gc] ...`, `[relatorio_inicializacao] ...` e no resumo.
 
 ### 0.4.0
 Feita a partir do relatório da sessão de 05/11/2026 (HLO 0.3.1, 413 mods, Intel UHD integrada), focada em
