@@ -637,7 +637,7 @@ public final class DiagnosticoLag {
                 .limit(3)
                 .map(e -> String.format("%s %d%% (%s)", Msg.t(e.getKey()), Math.round(100.0 * e.getValue() / total),
                         ehPadrao(e.getKey()) ? explicacao(e.getKey()) + (exemplo.get(e.getKey()).isEmpty() ? "" : "; " + exemplo.get(e.getKey()))
-                                : exemplo.get(e.getKey())))
+                                : exemplo.get(e.getKey()) + CausasConhecidas.nota(exemplo.get(e.getKey()))))
                 .collect(Collectors.joining(", ")) + String.format(Msg.t(" [%d amostra(s)]"), total);
     }
 

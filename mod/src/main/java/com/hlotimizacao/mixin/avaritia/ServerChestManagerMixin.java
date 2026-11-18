@@ -13,7 +13,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import java.io.File;
 
-/** Antes de carregar os baus: copia de seguranca (.hlbak) dos arquivos que vao ser corrigidos. */
+/** Antes de carregar os baus: copia de seguranca (.hlbak) dos arquivos que vao ser corrigidos, e o tamanho deles. */
 @Pseudo
 @Mixin(targets = "committee.nova.mods.avaritia.core.chest.ServerChestManager", remap = false)
 public abstract class ServerChestManagerMixin {
@@ -24,5 +24,17 @@ public abstract class ServerChestManagerMixin {
     @Inject(method = "load", at = @At("HEAD"), require = 0)
     private void hlotimizacao$copiaDeSeguranca(CallbackInfo ci) {
         ChavesInfinityChest.prepararPasta(new File(this.server.getWorldPath(LevelResource.ROOT).toFile(), "data/avaritia/infinity_chest"));
+        ChavesInfinityChest.registrarTamanho();
+    }
+
+    /** Tempo de cada gravacao dos baus (o Re-Avaritia grava todos a cada LevelEvent.Save, uma vez por dimensao). */
+    @Inject(method = "save", at = @At("HEAD"), require = 0)
+    private void hlotimizacao$inicioGravacao(MinecraftServer servidor, CallbackInfo ci) {
+        ChavesInfinityChest.inicioGravacao();
+    }
+
+    @Inject(method = "save", at = @At("RETURN"), require = 0)
+    private void hlotimizacao$fimGravacao(MinecraftServer servidor, CallbackInfo ci) {
+        ChavesInfinityChest.fimGravacao();
     }
 }

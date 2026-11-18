@@ -1,10 +1,11 @@
 {
   "homepage": "https://github.com/Liesel007/Mod-Otimiza-o-",
   "promos": {
-    "1.20.1-latest": "0.5.0",
-    "1.20.1-recommended": "0.5.0"
+    "1.20.1-latest": "0.5.1",
+    "1.20.1-recommended": "0.5.1"
   },
   "1.20.1": {
+    "0.5.1": "Fixes: memory suggestion never above the RAM cap or the current -Xmx when the system is out of RAM; idle dimensions are really skipped on save; JEI time found in the startup report.",
     "0.5.0": "Memory suggestion from real use, free RAM graph, idle dimension saving (pause save 492 -> 27 ms in tests), startup report, known swarm limits.",
     "0.4.0": "Stutter diagnostics (GC pauses, process freezes, frame spikes with their cause, FPS tab), swarm rendering limit, block entity render distance, gradual autosave, swarm limit for mobs created without the spawn event.",
     "0.3.1": "Polished panel; config values are edited with sliders and switches limited to valid ranges, lists are checked before saving.",

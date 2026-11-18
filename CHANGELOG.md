@@ -3,6 +3,27 @@
 HLO: HL Optimization, for Forge 1.20.1. The detailed notes (in Portuguese, with test results) are in
 [`mod/README.md`](mod/README.md#histórico-de-versões).
 
+## 0.5.1
+
+Fixes for 0.5.0, no new modules.
+
+- **Memory suggestion**: real use now comes only from full collections (G1 frees humongous objects in Young
+  collections, which 0.5.0 mistook for mixed ones). The cap is applied after rounding and the suggestion never goes
+  above it. When more than 30% of freezes happened with less than 1 GB of free RAM, HLO never suggests a larger
+  `-Xmx` and says to close other programs; within 512 MB of the current value it says "(keep)". The summary shows how
+  much of the session had free RAM below 1 GB.
+- **Idle dimension saving actually skips dimensions**: dirty data is compared with the last write or, the first time,
+  with the file on disk, so the first save of a session already skips idle dimensions. The vanilla raid tick counter
+  (present in every dimension) no longer counts as a change when there is no raid. Each active dimension's reason is
+  logged once.
+- **Startup report finds JEI**: works with the abbreviated logger names in Forge's `latest.log` and with the vanilla
+  launcher format (no logger name); accepts `minutes`; falls back to the time between log lines; adds plugin category
+  timings to the top 10. The live JEI timer read `1.063 minutes` as 1 s; fixed.
+- Conflict report: Xaero + FTB Chunks (with the FTB Chunks options that control its map work) and an AllTheLeaks note.
+- Known causes explained in the log and summary (Sophisticated Backpacks first load, AllTheLeaks trim, FTB Chunks map
+  writes). Infinity Chest size and save time, compared with the previous session.
+- Log format: existing prefixes and lines unchanged; new `[salvamento_dimensoes_vazias]` and summary lines.
+
 ## 0.5.0
 
 - **Memory suggestion from data** (`monitor_gc`): real use (heap after full/mixed collections), reserved `-Xmx` and a

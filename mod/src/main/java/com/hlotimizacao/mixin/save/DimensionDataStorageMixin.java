@@ -66,7 +66,7 @@ public abstract class DimensionDataStorageMixin {
             if (hlotimizacao$temSaveProprio(dados.getClass())) {
                 boolean sujo = dados.isDirty();
                 if (sujo && Config.ativo(com.hlotimizacao.config.Modulo.SALVAMENTO_DIMENSOES_VAZIAS)
-                        && com.hlotimizacao.recursos.SalvamentoSeletivo.semMudanca(arquivo.getPath(), dados.getClass().getName(), dados.save(new CompoundTag()))) {
+                        && com.hlotimizacao.recursos.SalvamentoSeletivo.semMudanca(arquivo, dados.getClass().getName(), dados.save(new CompoundTag()))) {
                     dados.setDirty(false); // conteudo igual ao da ultima gravacao: o save(File) do mod nao precisa rodar
                     continue;
                 }
@@ -102,11 +102,11 @@ public abstract class DimensionDataStorageMixin {
             }
             NbtUtils.addCurrentDataVersion(tag);
             dados.setDirty(false);
-            if (com.hlotimizacao.recursos.SalvamentoSeletivo.semMudanca(caminho.toString(), dados.getClass().getName(), tag)) {
+            if (com.hlotimizacao.recursos.SalvamentoSeletivo.semMudanca(arquivo, dados.getClass().getName(), tag.getCompound("data"))) {
                 continue; // igual a ultima gravacao: nao manda para o disco
             }
             Estatisticas.SALVAMENTO_ASSINCRONOS.incrementAndGet();
-            GravadorAssincrono.gravar(tag, caminho, nome, hlotimizacao$remarcarSujo(dados));
+            GravadorAssincrono.gravar(tag, caminho, nome, hlotimizacao$remarcarSujo(dados, arquivo));
         }
         ci.cancel();
     }
@@ -127,9 +127,11 @@ public abstract class DimensionDataStorageMixin {
 
     /** Se a gravacao assincrona falhar, o dado volta a ser marcado como sujo na thread do servidor. */
     @Unique
-    private static Runnable hlotimizacao$remarcarSujo(SavedData dados) {
+    private static Runnable hlotimizacao$remarcarSujo(SavedData dados, File arquivo) {
         MinecraftServer servidor = ServerLifecycleHooks.getCurrentServer();
         return () -> {
+            // O hash guardado era do que nao chegou ao disco: sem esquecer, o proximo salvamento acharia "sem mudanca".
+            com.hlotimizacao.recursos.SalvamentoSeletivo.esquecer(arquivo);
             if (servidor != null && servidor.isRunning()) {
                 servidor.execute(() -> dados.setDirty(true));
             } else {

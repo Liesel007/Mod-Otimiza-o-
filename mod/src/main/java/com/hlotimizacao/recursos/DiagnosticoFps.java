@@ -262,7 +262,7 @@ public final class DiagnosticoFps {
         if (ms >= Config.fpsRegistroMs() && agora - ultimoLogMs >= LOG_INTERVALO_MS) {
             ultimoLogMs = agora;
             Config.LOGGER.warn("[diagnostico_fps] Frame lento: {} ms. Provavel causa: {} ({}){} [{} amostra(s)]{}", ms, DiagnosticoLag.rotulo(mod), fase,
-                    detalhe.isEmpty() ? "" : " - " + detalhe, amostras.size(), pilhaTexto.isEmpty() ? "" : "\n" + pilhaTexto);
+                    (detalhe.isEmpty() ? "" : " - " + detalhe) + CausasConhecidas.nota(detalhe), amostras.size(), pilhaTexto.isEmpty() ? "" : "\n" + pilhaTexto);
         }
     }
 

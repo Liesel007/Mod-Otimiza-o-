@@ -14,7 +14,8 @@ public abstract class ServerLevelSeletivoMixin {
     @Inject(method = "save", at = @At("HEAD"), cancellable = true)
     private void hlotimizacao$pularParada(ProgressListener progresso, boolean flush, boolean pular, CallbackInfo ci) {
         ServerLevel level = (ServerLevel) (Object) this;
-        if (SalvamentoSeletivo.pularDimensao(level, ((DimensionDataStorageAcessor) level.getDataStorage()).hlotimizacao$dadosSeletivo())) {
+        DimensionDataStorageAcessor dados = (DimensionDataStorageAcessor) level.getDataStorage();
+        if (SalvamentoSeletivo.pularDimensao(level, dados.hlotimizacao$dadosSeletivo(), dados::hlotimizacao$arquivoSeletivo)) {
             ci.cancel();
         }
     }

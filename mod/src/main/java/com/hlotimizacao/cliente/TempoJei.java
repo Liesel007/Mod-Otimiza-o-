@@ -20,7 +20,6 @@ import java.util.regex.Pattern;
  * os loggers do JEI (mezz.jei): o resto do log passa direto. So diagnostico: nada e mudado na config do JEI.
  */
 public final class TempoJei {
-    private static final Pattern TEMPO = Pattern.compile("Starting JEI took ([0-9.,]+)\\s*(ms|s|seconds)?");
     private static final Pattern PLUGIN = Pattern.compile("([a-z0-9_.-]+:[a-z0-9_/.-]+)");
     private static volatile long ms = -1;
     private static final Set<String> PLUGINS_COM_ERRO = ConcurrentHashMap.newKeySet();
@@ -64,12 +63,12 @@ public final class TempoJei {
     }
 
     private static void lerTempo(String texto) {
-        Matcher m = TEMPO.matcher(texto);
-        if (!m.find()) {
+        // "Starting JEI took 1.063 minutes": acima de 60 s o JEI troca a unidade (a 0.5.0 lia 1.063 como segundos).
+        long lido = com.hlotimizacao.recursos.RelatorioInicializacao.ms(texto.substring("Starting JEI took".length()));
+        if (lido < 0) {
             return;
         }
-        double valor = Double.parseDouble(m.group(1).replace(',', '.'));
-        ms = "ms".equals(m.group(2)) ? Math.round(valor) : Math.round(valor * 1000);
+        ms = lido;
         if (ms > 20_000) {
             Config.LOGGER.info("[relatorio_conflitos] JEI levou {} s para abrir", ms / 1000);
             Avisos.adicionar(Msg.f("JEI levou {} s para abrir", ms / 1000),

@@ -40,6 +40,17 @@ public final class ChavesInfinityChest {
     public static final AtomicLong CHAVES_CORRIGIDAS = new AtomicLong();
     public static final AtomicLong ENTRADAS_MESCLADAS = new AtomicLong();
     public static final AtomicLong BAUS_CORRIGIDOS = new AtomicLong();
+    /** Tamanho dos baus ao carregar (todos, corrigidos ou nao). */
+    public static volatile int arquivosBaus;
+    public static volatile long entradasBaus;
+    public static volatile long bytesBaus;
+    /** Gravacoes do ServerChestManager.save (o Re-Avaritia grava todos os baus a cada LevelEvent.Save, ou seja, por dimensao). */
+    public static final AtomicLong GRAVACOES = new AtomicLong();
+    public static volatile long gravacaoMsTotal;
+    public static volatile long gravacaoMsMaior;
+    private static long inicioGravacaoNs;
+    private static File pastaBaus;
+    private static java.util.Properties anterior;
 
     private ChavesInfinityChest() {
     }
@@ -153,6 +164,10 @@ public final class ChavesInfinityChest {
      * ".hlbak" (so a primeira vez, para guardar o original) e registra o que sera feito.
      */
     public static void prepararPasta(File pasta) {
+        pastaBaus = pasta;
+        arquivosBaus = 0;
+        entradasBaus = 0;
+        bytesBaus = 0;
         File[] donos = pasta.listFiles(File::isDirectory);
         if (donos == null) {
             return;
@@ -166,6 +181,9 @@ public final class ChavesInfinityChest {
                 try {
                     CompoundTag dados = NbtIo.readCompressed(arquivo);
                     Resultado r = normalizar(dados);
+                    arquivosBaus++;
+                    entradasBaus += r.entradasDepois();
+                    bytesBaus += arquivo.length();
                     if (!r.mudou()) {
                         continue;
                     }
@@ -181,6 +199,93 @@ public final class ChavesInfinityChest {
                     Config.LOGGER.error("[correcao_infinity_chest] Nao foi possivel verificar {}", arquivo, e);
                 }
             }
+        }
+    }
+
+    /** Antes de o Re-Avaritia ler os baus: guarda o tamanho, compara com a sessao anterior e avisa se cresceu muito. */
+    public static void registrarTamanho() {
+        if (pastaBaus == null || arquivosBaus == 0) {
+            return;
+        }
+        File historico = historico();
+        anterior = new java.util.Properties();
+        if (historico != null && historico.isFile()) {
+            try (var r = Files.newBufferedReader(historico.toPath())) {
+                anterior.load(r);
+            } catch (IOException | RuntimeException e) {
+                anterior.clear();
+            }
+        }
+        Config.LOGGER.info("[correcao_infinity_chest] Infinity Chest: {} bau(s), {} entrada(s), {}{}", arquivosBaus, entradasBaus, tamanho(bytesBaus),
+                anterior.isEmpty() ? "" : com.hlotimizacao.config.Msg.f(" (sessao anterior: {} entrada(s), {}, maior gravacao {} ms)",
+                        anterior.getProperty("entradas", "?"), tamanho(Long.parseLong(anterior.getProperty("bytes", "0"))), anterior.getProperty("gravacao_ms", "?")));
+        long bytesAntes = Long.parseLong(anterior.getProperty("bytes", "0"));
+        if (bytesBaus >= 1024 * 1024 && bytesAntes > 0 && bytesBaus > bytesAntes * 1.2) {
+            Avisos.substituir("infinity_chest:tamanho", com.hlotimizacao.config.Msg.f("Infinity Chest esta crescendo ({} entradas, {} MB)", entradasBaus,
+                            String.format(java.util.Locale.ROOT, "%.1f", bytesBaus / 1048576.0)),
+                    com.hlotimizacao.config.Msg.f("Os Infinity Chests passaram de {} KB para {} KB desde a sessao anterior. O Re-Avaritia grava todos os baus inteiros na thread do servidor a cada salvamento de dimensao, entao o fechamento e o autosave demoram mais. Esvaziar itens que nao precisam ficar la (ou dividir em mais baus nao ajuda: todos sao gravados) reduz o tempo.",
+                            bytesAntes / 1024, bytesBaus / 1024));
+        }
+        gravarHistorico();
+    }
+
+    public static void inicioGravacao() {
+        inicioGravacaoNs = System.nanoTime();
+    }
+
+    public static void fimGravacao() {
+        if (inicioGravacaoNs == 0) {
+            return;
+        }
+        long ms = (System.nanoTime() - inicioGravacaoNs) / 1_000_000;
+        inicioGravacaoNs = 0;
+        GRAVACOES.incrementAndGet();
+        gravacaoMsTotal += ms;
+        if (ms > gravacaoMsMaior) {
+            gravacaoMsMaior = ms;
+            gravarHistorico();
+        }
+    }
+
+    /** "3 bau(s), 1331 entrada(s), 4.2 MB; 156 gravacao(oes), maior 8012 ms (sessao anterior: 4100 ms)" ou "" */
+    public static String resumoTamanho() {
+        if (arquivosBaus == 0) {
+            return "";
+        }
+        String texto = com.hlotimizacao.config.Msg.f("{} bau(s), {} entrada(s), {}; {} gravacao(oes), {} ms no total, maior {} ms", arquivosBaus, entradasBaus,
+                tamanho(bytesBaus), GRAVACOES.get(), gravacaoMsTotal, gravacaoMsMaior);
+        if (anterior != null && anterior.containsKey("gravacao_ms")) {
+            texto += com.hlotimizacao.config.Msg.f(" (sessao anterior: maior {} ms)", anterior.getProperty("gravacao_ms"));
+        }
+        return texto;
+    }
+
+    private static String tamanho(long bytes) {
+        return bytes < 1024 * 1024 ? bytes / 1024 + " KB" : String.format(java.util.Locale.ROOT, "%.1f MB", bytes / 1048576.0);
+    }
+
+    private static File historico() {
+        File mundoData = pastaBaus == null ? null : pastaBaus.getParentFile() == null ? null : pastaBaus.getParentFile().getParentFile();
+        return mundoData == null ? null : new File(mundoData, "hlotimizacao_infinity_chest.properties");
+    }
+
+    private static void gravarHistorico() {
+        File historico = historico();
+        if (historico == null) {
+            return;
+        }
+        java.util.Properties p = new java.util.Properties();
+        p.setProperty("entradas", Long.toString(entradasBaus));
+        p.setProperty("bytes", Long.toString(bytesBaus));
+        long maior = gravacaoMsMaior;
+        if (maior == 0 && anterior != null) {
+            maior = Long.parseLong(anterior.getProperty("gravacao_ms", "0")); // nada gravado ainda nesta sessao
+        }
+        p.setProperty("gravacao_ms", Long.toString(maior));
+        try (var w = Files.newBufferedWriter(historico.toPath())) {
+            p.store(w, "HL Otimizacao: tamanho dos Infinity Chests (para comparar entre sessoes)");
+        } catch (IOException | RuntimeException e) {
+            Config.LOGGER.debug("[correcao_infinity_chest] Nao foi possivel gravar {}", historico, e);
         }
     }
 

@@ -13,7 +13,9 @@ import java.io.File;
 /**
  * 0.5.0: salvamento_dimensoes_vazias. Um dado de mod "sempre alterado" com save(File) proprio que leva 150 ms (como o
  * ConduitSavedData do Ender IO) em cada dimensao; salva tres vezes pelo caminho da pausa e mede. Depois muda o dado de
- * verdade numa dimensao sem jogador: o fechamento do mundo tem que grava-lo.
+ * verdade numa dimensao sem jogador: o proximo salvamento e o fechamento do mundo tem que grava-lo.
+ * 0.5.1: rodando de novo no mesmo mundo (outra sessao), o primeiro salvamento ja pula as dimensoes paradas (o conteudo
+ * e comparado com o arquivo no disco).
  */
 final class TesteDimensoes {
     static final class SempreSujo extends SavedData {
@@ -79,8 +81,8 @@ final class TesteDimensoes {
         for (ServerLevel level : ctx.getSource().getServer().getAllLevels()) {
             if (level.dimension() == net.minecraft.world.level.Level.END) {
                 SempreSujo d = dados(level);
-                d.valor = 4242;
-                HLBench.LOGGER.info("HLBENCH dimensoes mudou dim=end valor=4242 jogadores={} chunks={}", level.players().size(),
+                d.valor = d.valor + 1;
+                HLBench.LOGGER.info("HLBENCH dimensoes mudou dim=end valor={} jogadores={} chunks={}", d.valor, level.players().size(),
                         level.getChunkSource().getLoadedChunksCount());
             }
         }

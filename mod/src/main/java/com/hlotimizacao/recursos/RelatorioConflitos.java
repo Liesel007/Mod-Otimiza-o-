@@ -67,6 +67,20 @@ public final class RelatorioConflitos {
                     Msg.t("O Fast Async World Save ignora SavedData que sobrescrevem save(File). O modulo salvamento_assincrono trata esse caso; remova o FAWS para ele ligar."));
             avisos++;
         }
+        if ((Config.modInstalado("xaerominimap") || Config.modInstalado("xaeroworldmap")) && Config.modInstalado("ftbchunks")) {
+            // Conferido no FTB Chunks 1.20.1: com o minimapa desligado ele continua mapeando o mundo, e a cada
+            // region_release_time (300 s) libera regioes gravando MapRegionData.write no tick do cliente.
+            Config.LOGGER.info("[relatorio_conflitos] Xaero's Minimap/World Map e FTB Chunks juntos: o FTB Chunks continua montando o mapa dele (mesmo com minimap.enabled=false) e grava regioes na thread do jogo");
+            Avisos.adicionar(Msg.t("Xaero + FTB Chunks: dois mapas"),
+                    Msg.t("O FTB Chunks tambem monta o mapa dele (grava na thread do jogo), mesmo com o minimapa desligado. Se ele so serve para claims, reduza o trabalho do mapa em "
+                            + "local/ftbchunks/client-config.snbt: advanced.rerender_queue_ticks (padrao 60, ate 600: atualiza o mapa menos vezes) e "
+                            + "advanced.memory.region_release_time (padrao 300 s; maior = grava menos durante o jogo, mas guarda mais regioes na RAM; 0 so libera ao sair)."));
+            avisos++;
+        }
+        if (Config.modInstalado("alltheleaks")) {
+            Config.LOGGER.info("[relatorio_conflitos] AllTheLeaks: forca uma coleta completa ao fechar o mundo e limpa o mapa de vazamentos a cada 5 min (fixo no codigo); "
+                    + "logIntervalInMinutes em config/alltheleaks.json controla so o relatorio periodico (0 desliga)");
+        }
         avisos += DiagnosticoAmbiente.verificar();
         avisosInicializacao = Avisos.quantidade();
         Config.LOGGER.info("Relatorio de conflitos: {} aviso(s). Mais informacoes: {}", avisos, Config.URL_PROJETO);

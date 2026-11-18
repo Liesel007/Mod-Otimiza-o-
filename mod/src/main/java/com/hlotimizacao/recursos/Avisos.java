@@ -28,6 +28,10 @@ public final class Avisos {
         AVISOS.put(id, new Aviso(curto, detalhe));
     }
 
+    public static synchronized void remover(String id) {
+        AVISOS.remove(id);
+    }
+
     public static synchronized List<Aviso> todos() {
         return new ArrayList<>(AVISOS.values());
     }

@@ -9,7 +9,7 @@ Nome exibido: **HLO: HL Optimization** (o modId continua `hlotimizacao`, para n�
 Licença: [MIT](../LICENSE). Página do projeto (textos para o CurseForge): [`docs/curseforge/`](../docs/curseforge/).
 Mudanças por versão em inglês: [`CHANGELOG.md`](../CHANGELOG.md).
 
-**Jar pronto:** [`releases/hlotimizacao-0.5.0.jar`](../releases/hlotimizacao-0.5.0.jar). Basta colocá-lo
+**Jar pronto:** [`releases/hlotimizacao-0.5.1.jar`](../releases/hlotimizacao-0.5.1.jar). Basta colocá-lo
 na pasta `mods` da instância.
 
 ## Como ele convive com os mods do pack
@@ -236,6 +236,68 @@ Teste de antes e depois com números: [`docs/benchmark.md`](../docs/benchmark.md
   e o funcionamento junto com o pack HL completo. Teste num mundo de cópia antes de usar no mundo principal.
 
 ## Histórico de versões
+
+### 0.5.1
+Correções da 0.5.0 a partir do relatório da sessão de 16/11/2026 (`docs/relatorios/hlotimizacao_0.5.1_relatorio.md`).
+Nenhum módulo novo.
+
+**1. Sugestão de memória**
+- **Uso real só das coletas completas.** A 0.5.0 contava como "mista" qualquer coleta em que a geração velha
+  diminuía. O G1 libera objetos grandes (humongous) da geração velha em coletas Young, então coletas Young entravam
+  como medida do conjunto vivo (4.103 MB em vez dos 3.559 da Full). Agora: com alguma Full na sessão, só ela conta;
+  sem nenhuma, o mínimo pós-Young dos últimos 5 min, marcado "(estimado)".
+- **Teto aplicado depois do arredondamento**: o valor final nunca passa de 50% da RAM (GPU integrada) ou 65%.
+- **RAM livre baixa**: com mais de 30% dos congelamentos com menos de 1 GB livre, a sugestão é no máximo o `-Xmx`
+  atual e a mensagem principal vira "feche outros programas". Diferença menor que 512 MB do atual: "(manter)".
+  Com os dados da sessão (HLBench): `uses ~3.5 GB, reserved 6.0 GB, suggested 6.0 GB (keep) (RAM 11.5 GB, integrated
+  GPU) - 27 of 38 freezes with free RAM below 1 GB: close other programs (browser, Discord) while playing`.
+  A mensagem de coleta Young longa também deixou de mandar reduzir quando o atual serve.
+- Resumo do fechamento: `free system RAM was below 1 GB for N% of the session (first at HH:MM:SS, X MB; lowest Y MB)`.
+- Mostrar quais programas ocupam a RAM não dá: o Java não informa a memória de outros processos sem código nativo.
+
+**2. `salvamento_dimensoes_vazias`: as dimensões não eram puladas**
+- **Causa 1:** a 0.5.0 só pulava uma dimensão quando a classe do dado já tinha sido vista igual numa gravação
+  anterior **da mesma sessão**. Na sessão havia 1 salvamento parcial antes do fechamento, então nada era pulado.
+  Agora cada dado marcado como alterado é comparado de verdade: com a última gravação da sessão ou, na primeira vez,
+  com o arquivo no disco (`equals` do NBT, uma leitura por arquivo). Teste: numa segunda sessão no mesmo mundo, **o
+  primeiro salvamento já pula** as dimensões paradas (também conferido no cliente de produção: `1 of 3` ativa no
+  primeiro Esc).
+- **Causa 2:** o `raids.dat` vanilla existe em toda dimensão e é marcado como alterado a cada 200 ticks só porque o
+  contador `Tick` anda. Sem raid ativa, o contador não entra na comparação (fechar o mundo grava tudo).
+- O `ConduitSavedData` do Ender IO (conferido no código, branch 1.20.1) sobrescreve `isDirty()` para devolver sempre
+  `true`, é criado em toda dimensão pelo tick dele e grava com `super.save` num `.tmp` (formato vanilla), então a
+  comparação com o disco funciona para ele.
+- **Log com o motivo**, uma vez por motivo e dimensão: `minecraft:overworld active: player present`,
+  `x:y active: 4 loaded chunk(s), forced: 0 by /forceload, tickets from [lantea]`, `x:z active: changed SavedData
+  [enderio_conduit_network]`. O resumo mostra a contagem por motivo.
+- Hash de 64 bits (CRC32 + Adler32) no lugar do CRC32; se uma gravação assíncrona falhar, o hash é esquecido.
+- Pular a dimensão também pula o `LevelEvent.Save` dela; o Re-Avaritia grava todos os Infinity Chests nesse evento
+  (uma vez por dimensão), então isso também corta gravações repetidas dos baús.
+- Teste (3 dimensões, dado "sempre sujo" de 150 ms): pausa 493 ms na primeira vez, depois 13–21 ms; passando o
+  contador de raids, continua pulando; um dado mudado no End sem jogador é gravado na pausa seguinte e no fechamento.
+
+**3. Tempo do JEI no relatório de inicialização**
+- O `latest.log` do Forge abrevia o logger (`me.je.li.lo.PluginCaller`) e o do launcher vanilla/CurseForge nem tem o
+  logger; a 0.5.0 procurava `[mezz.jei` e não achava nada. Agora a linha é separada em hora/logger/mensagem e o JEI é
+  reconhecido pelo logger (completo ou abreviado) ou, sem logger, pelas mensagens que ele escreve.
+- Unidades `milliseconds`, `seconds`, `minutes` (`1.063 minutes` = 63,8 s). O leitor ao vivo (`TempoJei`) tinha o
+  mesmo problema (lia `1.063` como segundos) e foi corrigido.
+- Sem a linha final: tempo do `Starting JEI...` até a última `Sending Runtime`, marcado "(medido pelo log)".
+- Plugins de `Registering recipes:` e `Registering categories:` entram no top 10.
+
+**Ajustes**
+- **Xaero + FTB Chunks**: aviso no relatório de conflitos. Conferido no FTB Chunks 1.20.1: com o minimapa desligado
+  ele continua mapeando, e a cada `advanced.memory.region_release_time` (300 s) libera regiões gravando
+  `MapRegionData.write` no tick do cliente. Opções citadas: `advanced.rerender_queue_ticks` (60, até 600) e
+  `region_release_time` (maior = menos gravações, mais RAM; 0 só libera ao sair).
+- **AllTheLeaks**: o `Trackable$2.trim` é uma tarefa fixa a cada 6000 ticks (e ao trocar de mundo), **não** ligada ao
+  `logIntervalInMinutes`, que controla só o relatório periódico (0 desliga). Não há opção para o `trim`; o HLO só
+  explica no log.
+- **Causas conhecidas** no log e no resumo: `BackpackStorage` (primeira carga das mochilas do Sophisticated
+  Backpacks), `Trackable$2.trim` (AllTheLeaks) e `MapRegionData.write` (FTB Chunks).
+- **Infinity Chest**: tamanho ao carregar (baús, entradas, KB/MB), tempo de cada gravação e comparação com a sessão
+  anterior (`data/hlotimizacao_infinity_chest.properties` no mundo); aviso "Infinity Chest is getting big" quando
+  passa de 1 MB e cresce mais de 20%.
 
 ### 0.5.0
 Feita a partir do relatório da sessão de 15/11/2026 (HLO 0.4.0, 425 mods, Intel UHD, 12 GB de RAM, -Xmx 7,5 GB, 78 dimensões).

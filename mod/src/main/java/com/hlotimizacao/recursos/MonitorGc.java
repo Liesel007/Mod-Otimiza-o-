@@ -111,25 +111,13 @@ public final class MonitorGc {
         }
         long ms = info.getGcInfo().getDuration();
         Desempenho.registrarPausaGc(ms);
-        // Uso real da memoria (Memoria): heap depois de coletas completas ou mistas (a geracao velha diminuiu).
-        long antesTotal = 0;
+        // Uso real da memoria (Memoria): heap depois das coletas completas (so elas medem o conjunto vivo).
         long depoisTotal = 0;
-        long velhaAntes = 0;
-        long velhaDepois = 0;
-        for (Map.Entry<String, MemoryUsage> e : info.getGcInfo().getMemoryUsageBeforeGc().entrySet()) {
-            antesTotal += e.getValue().getUsed();
-            if (e.getKey().contains("Old") || e.getKey().contains("Tenured")) {
-                velhaAntes += e.getValue().getUsed();
-            }
-        }
         for (Map.Entry<String, MemoryUsage> e : info.getGcInfo().getMemoryUsageAfterGc().entrySet()) {
             depoisTotal += e.getValue().getUsed();
-            if (e.getKey().contains("Old") || e.getKey().contains("Tenured")) {
-                velhaDepois += e.getValue().getUsed();
-            }
         }
-        boolean completaOuMista = info.getGcAction().contains("major") || nome.contains("Old") || nome.contains("MarkSweep") || velhaDepois < velhaAntes;
-        Memoria.aposColeta(completaOuMista, depoisTotal >> 20, System.currentTimeMillis());
+        boolean completaGc = info.getGcAction().contains("major") || nome.contains("Old") || nome.contains("MarkSweep");
+        Memoria.aposColeta(completaGc, depoisTotal >> 20, System.currentTimeMillis());
         String causa = info.getGcCause();
         if (Config.ativo(Modulo.MONITOR_GC) && (causa.contains("Diagnostic Command") || causa.contains("Heap Inspection"))) {
             origemDiagnostico(ms, causa);
@@ -165,9 +153,16 @@ public final class MonitorGc {
         if (!completa && ms >= 1000 && antes < maximo * 0.8) {
             // Coleta Young de segundos com o heap longe de cheio: o tempo foi o sistema trazendo o heap de volta do disco.
             YOUNG_LONGAS.incrementAndGet();
-            String sugestao = Memoria.sugestaoCurta();
-            Config.LOGGER.warn("[monitor_gc] Coleta Young levou {} ms: e o sistema paginando o heap para o disco, nao um problema do GC. Reduza o -Xmx (sugerido: {}) ou feche outros programas.",
-                    ms, sugestao == null ? "?" : sugestao);
+            Memoria.Recomendacao r = Memoria.atual();
+            if (r != null && (r.manter() || r.sugeridoMb() >= r.reservadoMb())) {
+                // Nunca mandar aumentar o heap: o problema e RAM livre do sistema.
+                Config.LOGGER.warn("[monitor_gc] Coleta Young levou {} ms: e o sistema paginando o heap para o disco, nao um problema do GC. Feche outros programas; nao aumente o -Xmx (o atual, {}, serve).",
+                        ms, Memoria.sugestaoCurta());
+            } else {
+                String sugestao = Memoria.sugestaoCurta();
+                Config.LOGGER.warn("[monitor_gc] Coleta Young levou {} ms: e o sistema paginando o heap para o disco, nao um problema do GC. Reduza o -Xmx (sugerido: {}) ou feche outros programas.",
+                        ms, sugestao == null ? "?" : sugestao);
+            }
         } else if (ms >= LOGAR_MS) {
             Config.LOGGER.warn("[monitor_gc] Pausa de {} ms: {}, causa: {}, heap {} MB -> {} MB", ms, coletor, info.getGcCause(), antes >> 20, depois >> 20);
         }
@@ -283,6 +278,10 @@ public final class MonitorGc {
         return maiorMs;
     }
 
+    static int congelamentos() {
+        return SOLUCOS.get();
+    }
+
     public static String maiorDescricao() {
         return maiorDescricao;
     }
@@ -292,13 +291,19 @@ public final class MonitorGc {
             + "-XX:InitiatingHeapOccupancyPercent=15 -XX:+AlwaysPreTouch";
 
     private static void atualizarAvisos() {
-        long[] uso = Memoria.usoReal();
-        long reservado = Runtime.getRuntime().maxMemory() >> 20;
-        if (uso[0] > 0 && (SOLUCOS.get() > 0 || YOUNG_LONGAS.get() > 0) && reservado > Memoria.sugeridoMb(uso[0]) + 512) {
-            Avisos.substituir("monitor_gc:xmx", Msg.f("RAM: -Xmx {} GB, sugerido {}", Math.round(reservado / 102.4) / 10.0, Memoria.sugestaoCurta()),
+        Memoria.Recomendacao r = Memoria.atual();
+        if (r != null && r.ramBaixa()) {
+            // Falta RAM no sistema: aumentar o -Xmx piora a paginacao. A mensagem principal e fechar programas.
+            Avisos.remover("monitor_gc:xmx");
+            Avisos.substituir("monitor_gc:ram", Msg.f("RAM: feche outros programas, o Windows esta sem RAM livre ({} de {} congelamentos)", r.congelamentosRamBaixa(), r.congelamentos()),
+                    Msg.f("{} de {} congelamentos do processo aconteceram com menos de 1 GB de RAM livre no sistema: o Windows esta tirando o jogo da memoria. "
+                            + "Feche o navegador, o Discord e outros programas enquanto joga. Nao aumente o -Xmx: isso piora. {}",
+                            r.congelamentosRamBaixa(), r.congelamentos(), Memoria.texto(r)));
+        } else if (r != null && (SOLUCOS.get() > 0 || YOUNG_LONGAS.get() > 0) && !r.manter() && r.sugeridoMb() < r.reservadoMb()) {
+            Avisos.substituir("monitor_gc:xmx", Msg.f("RAM: -Xmx {} GB, sugerido {}", Math.round(r.reservadoMb() / 102.4) / 10.0, Memoria.sugestaoCurta()),
                     Msg.f("O jogo usa de verdade ~{} MB (medido depois das coletas), mas reserva {} MB. Com o sistema congelando o processo ({} vez(es)) e coletas Young longas ({}), o heap grande esta sendo paginado para o disco. "
                             + "Sugestao: -Xmx{}M nos argumentos da JVM (no CurseForge: Configuracoes > Minecraft > memoria). {}",
-                            uso[0], reservado, SOLUCOS.get(), YOUNG_LONGAS.get(), Memoria.sugeridoMb(uso[0]), Memoria.resumo()));
+                            r.vivoMb(), r.reservadoMb(), SOLUCOS.get(), YOUNG_LONGAS.get(), r.sugeridoMb(), Memoria.texto(r)));
         }
         if (GC_EXPLICITOS.get() >= 2) {
             Avisos.substituir("monitor_gc:explicito", Msg.f("GC: {} coleta(s) pedida(s) por System.gc()", GC_EXPLICITOS.get()),
@@ -359,6 +364,10 @@ public final class MonitorGc {
         String memoria = Memoria.resumo();
         if (memoria != null) {
             texto += "\n  " + Msg.f("monitor_gc: memoria: {}", memoria);
+        }
+        String ramLivre = Memoria.resumoRamLivre();
+        if (ramLivre != null) {
+            texto += "\n  " + "monitor_gc: " + ramLivre;
         }
         return texto;
     }
